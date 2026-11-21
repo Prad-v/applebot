@@ -4,4 +4,7 @@
 // Google OAuth client ID (iOS client type) for the Gmail connector. Empty disables Gmail.
 // Set it in Local.xcconfig, or run: GOOGLE_CLIENT_ID=... make project (see docs/connectors.md).
 GOOGLE_CLIENT_ID =
+// Brave Search API key for the Web search connector. Empty disables Web search.
+// Weather and Stocks need no key. Set it in Local.xcconfig, or: BRAVE_API_KEY=... make project.
+BRAVE_API_KEY =
 #include? "Local.xcconfig"

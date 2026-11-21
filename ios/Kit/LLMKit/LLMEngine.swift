@@ -24,10 +24,13 @@ public struct Turn: Sendable, Codable, Equatable, Hashable {
 public struct LLMRequest: Sendable, Equatable {
     public var instructions: String
     public var prompt: String
+    /// Optional sampling temperature (higher = more varied). Engines that do not support it ignore this.
+    public var temperature: Double?
 
-    public init(instructions: String, prompt: String) {
+    public init(instructions: String, prompt: String, temperature: Double? = nil) {
         self.instructions = instructions
         self.prompt = prompt
+        self.temperature = temperature
     }
 }
 
@@ -49,13 +52,13 @@ extension LLMEngineError: LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .contextOverflow:
-            return "The conversation is too long for the on-device model."
+            return "The conversation is too long for the model."
         case .guardrail:
             return "I can't help with that one, but I'm happy to try if you put it another way."
         case .unavailable(let why):
-            return "The on-device model is unavailable: \(why)"
+            return "The model is unavailable: \(why)"
         case .unsupportedLanguage:
-            return "This language is not supported by the on-device model."
+            return "This language is not supported by the model."
         case .other(let message):
             return message
         }

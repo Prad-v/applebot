@@ -2,6 +2,21 @@
 
 All notable changes to Applebot are documented here. Versions follow semantic versioning.
 
+## 0.4.0
+
+### Added
+- **Live data connectors**: **Weather** (Open-Meteo), **Stocks** (Yahoo Finance) and **Web search** (Brave Search API). Off until you switch them on; only the place, ticker or query leaves the device.
+- Weather and Stocks need no API key. Web search is enabled with build setting `BRAVE_API_KEY` (see [connectors](docs/connectors.md)).
+- The tool prompt tells the model never to invent weather, prices, news or recent events when a live tool can help.
+- **External models**: Settings → External model lets you switch chats from Apple Intelligence to **OpenAI** or **Anthropic** with your own API key.
+- Per-provider model name and optional base URL (OpenAI-compatible proxies and local servers). API keys are stored only in the Keychain on this iPhone.
+- While the switch is on, chats stream from the configured provider; turn it off to return to the on-device model. Connectors and document search keep working with either backend.
+- Documentation: [docs/connectors.md](docs/connectors.md), [docs/external-models.md](docs/external-models.md).
+
+### Changed
+- Settings shows the active model (on-device or external). Chats show a small notice when messages leave the iPhone for an external provider.
+- Network summary in Settings reflects an enabled external model as well as connectors that use the network.
+
 ## 0.3.0
 
 ### Added
@@ -32,6 +47,14 @@ All notable changes to Applebot are documented here. Versions follow semantic ve
 - Attaching documents to a chat narrows that chat's search to the attached documents. Removing the last one returns to "all documents".
 - Empty chats that never received a message are no longer saved or listed.
 - Documents deleted from the library are dropped from any chat's scope automatically.
+
+## 0.2.1
+
+### Changed
+- Warm companion is now the default conversation style.
+- Warm and coach personas answer "how are you?" / "how are you feeling?" in character instead of saying they have no feelings.
+- Detects check-in questions about the bot and injects first-person companion guidance; skips document search for those turns.
+- Slightly higher sampling temperature for warm and coach styles so replies feel less flat.
 
 ## 0.2.0
 

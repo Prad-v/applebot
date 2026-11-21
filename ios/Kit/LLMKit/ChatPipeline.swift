@@ -28,6 +28,8 @@ public struct ChatResult: Sendable, Equatable {
     public var compactions: Int
     /// The emotion read from the user's message (only for emotion-aware tones).
     public var emotion: EmotionReading?
+    /// Companion conversational cue (e.g. the user asked how the bot is feeling).
+    public var cue: CompanionCue
 
     public var citedSnippets: [ContextSnippet] {
         citedIndices.compactMap { $0 >= 1 && $0 <= snippets.count ? snippets[$0 - 1] : nil }
@@ -135,9 +137,12 @@ public struct ChatPipeline: Sendable {
         var history = state.history
         var compactions = 0
 
-        // Emotion (optional): a distressed user gets a conversation, not a document lookup.
-        let emotion = prompts.tone.isEmotionAware ? emotionDetector?.read(question) : nil
-        let skipDocuments = emotion?.needsSupport == true
+        // Emotion + companion cues (optional): distress or "how are you?" get a conversation,
+        // not a document lookup.
+        let emotionAware = prompts.tone.isEmotionAware
+        let emotion = emotionAware ? emotionDetector?.read(question) : nil
+        let cue = emotionAware ? CompanionCue.detect(in: question) : .none
+        let skipDocuments = emotion?.needsSupport == true || cue == .askingAboutBot
 
         // Retrieval (optional).
         var candidates: [ContextSnippet] = []
@@ -153,13 +158,20 @@ public struct ChatPipeline: Sendable {
         let toolEngine = engine as? any ToolCallingEngine
         let useTools = !grounded && !tools.isEmpty && toolEngine != nil
         let toolNote = useTools ? PromptBuilder.toolInstructions(now: clock()) : nil
+        let temperature = prompts.tone.samplingTemperature
         var window = context
         if useTools { window.answerReserve += toolReserveTokens }
+
+        func instructionsText(summary: String?) -> String {
+            prompts.instructions(
+                summary: summary, grounded: grounded, toolNote: toolNote, emotion: emotion, cue: cue
+            )
+        }
 
         // Proactive compaction: do not wait for an overflow error.
         if window.shouldCompact(history: history) {
             let fit = window.fit(
-                instructions: prompts.instructions(summary: summary, grounded: grounded, toolNote: toolNote, emotion: emotion),
+                instructions: instructionsText(summary: summary),
                 history: history, snippets: [], question: question
             )
             if !fit.dropped.isEmpty {
@@ -171,7 +183,7 @@ public struct ChatPipeline: Sendable {
 
         var lastError: Error = LLMEngineError.contextOverflow
         for pressure in retryPressures {
-            let instructions = prompts.instructions(summary: summary, grounded: grounded, toolNote: toolNote, emotion: emotion)
+            let instructions = instructionsText(summary: summary)
             let fit = window.fit(
                 instructions: instructions, history: history,
                 snippets: candidates, question: question, pressure: pressure
@@ -183,8 +195,9 @@ public struct ChatPipeline: Sendable {
             }
 
             let request = LLMRequest(
-                instructions: prompts.instructions(summary: summary, grounded: grounded, toolNote: toolNote, emotion: emotion),
-                prompt: prompts.prompt(history: history, snippets: fit.snippets, question: question)
+                instructions: instructionsText(summary: summary),
+                prompt: prompts.prompt(history: history, snippets: fit.snippets, question: question),
+                temperature: temperature
             )
 
             do {
@@ -207,7 +220,7 @@ public struct ChatPipeline: Sendable {
                 return makeResult(
                     answer: answer, question: question, snippets: fit.snippets, grounded: grounded,
                     searchQuery: searchQuery, summary: summary, history: history, compactions: compactions,
-                    emotion: emotion
+                    emotion: emotion, cue: cue
                 )
             } catch LLMEngineError.contextOverflow {
                 lastError = LLMEngineError.contextOverflow
@@ -220,7 +233,7 @@ public struct ChatPipeline: Sendable {
     private func makeResult(
         answer: String, question: String, snippets: [ContextSnippet], grounded: Bool,
         searchQuery: String?, summary: String?, history: [Turn], compactions: Int,
-        emotion: EmotionReading?
+        emotion: EmotionReading?, cue: CompanionCue
     ) -> ChatResult {
         let trimmed = answer.trimmingCharacters(in: .whitespacesAndNewlines)
         let cited = PromptBuilder.citations(in: trimmed).filter { $0 >= 1 && $0 <= snippets.count }
@@ -235,7 +248,8 @@ public struct ChatPipeline: Sendable {
             searchQuery: searchQuery,
             state: ChatState(summary: summary, history: newHistory),
             compactions: compactions,
-            emotion: emotion
+            emotion: emotion,
+            cue: cue
         )
     }
 

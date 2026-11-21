@@ -5,9 +5,10 @@ A private, **fully offline ChatGPT-style assistant for iPhone**. It runs Apple's
 - **General chat** with streaming answers, saved conversations, search, pinning.
 - **Chat with my documents**: import PDFs, text, Markdown, and photos (OCR). Answers cite their sources, and "Why this answer?" shows exactly what the model was given.
 - **Emotional chat**: choose a warm companion or supportive coach style; Applebot reads your mood on-device and adapts its tone.
-- **Connectors**: let Applebot use **Gmail** and your **Calendar** when you ask. Reads freely, but saves a draft or adds an event only after you approve the exact content. See [docs/connectors.md](docs/connectors.md).
-- **Private by construction**: everything stays on the device, encrypted at rest, optional Face ID lock. With connectors off there are no network requests at all.
-- Requires **iOS 26+** and an Apple Intelligence-capable iPhone (iPhone 15 Pro or newer) with Apple Intelligence turned on.
+- **Connectors**: **Gmail**, **Calendar**, **Weather**, **Stocks** and **Web search**. Reads and live lookups run when you ask; drafts and events only after you approve the exact content. See [docs/connectors.md](docs/connectors.md).
+- **External models (optional)**: in Settings, switch chats to **OpenAI** or **Anthropic** with your own API key. Off by default; keys stay in the Keychain. See [docs/external-models.md](docs/external-models.md).
+- **Private by construction**: by default everything stays on the device, encrypted at rest, optional Face ID lock. With connectors and the external model off there are no network requests at all.
+- Requires **iOS 26+** and an Apple Intelligence-capable iPhone (iPhone 15 Pro or newer) with Apple Intelligence turned on (unless you use an external model).
 
 ## Documentation
 
@@ -15,7 +16,8 @@ A private, **fully offline ChatGPT-style assistant for iPhone**. It runs Apple's
 |---|---|
 | [docs/user-guide.md](docs/user-guide.md) | Using the app: chatting, importing documents, privacy settings |
 | [docs/architecture.md](docs/architecture.md) | Components, data flow, context-window budgeting |
-| [docs/connectors.md](docs/connectors.md) | Gmail and Calendar connectors: setup, approvals, security model, tool reference, adding a connector |
+| [docs/connectors.md](docs/connectors.md) | Gmail, Calendar, Weather, Stocks and Web search: setup, approvals, security model, tool reference, adding a connector |
+| [docs/external-models.md](docs/external-models.md) | Optional OpenAI / Anthropic chat backends: keys, privacy, OpenAI-compatible base URLs |
 | [docs/emotional-chat.md](docs/emotional-chat.md) | Warm companion / coach styles, mood reading, safety notes |
 | [docs/rag.md](docs/rag.md) | Chunking, embeddings, hybrid retrieval, evaluation |
 | [docs/development.md](docs/development.md) | Building, Docker Compose workflow, tests, CI, environment variables |
@@ -44,9 +46,9 @@ Run on a physical iPhone 15 Pro or newer for real Apple Intelligence answers. Th
 Package.swift            Root Swift package (LLMKit + RAGKit + ConnectorKit) so tests can live in tests/
 ios/
   App/                   SwiftUI app (chats, documents, settings)
-  Kit/LLMKit/            Engine protocol, Apple Foundation Models engine, context budgeting, chat pipeline
+  Kit/LLMKit/            Engine protocol, Apple + optional OpenAI/Anthropic engines, context budgeting, chat pipeline
   Kit/RAGKit/            Chunker, embeddings, hybrid index, SQLite store, extractors, evaluator
-  Kit/ConnectorKit/      Connector protocol and registry, OAuth (PKCE), Gmail and Calendar connectors
+  Kit/ConnectorKit/      Connector protocol and registry, OAuth (PKCE), Gmail, Calendar, Weather, Stocks, Web search
   project.yml            XcodeGen spec (the .xcodeproj is generated, not committed)
 tests/                   The single test folder: unit, retrieval eval, UI smoke tests, CI scripts
 docs/                    Markdown documentation

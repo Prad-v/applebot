@@ -20,17 +20,19 @@
 
   <h2>Chat</h2>
   <ul>
-    <li>Streaming answers from Apple's on-device language model</li>
+    <li>Streaming answers from Apple's on-device language model by default</li>
+    <li>Optional <strong>OpenAI</strong> or <strong>Anthropic</strong> backends in Settings (your API key, Keychain only); switch off anytime to return on-device</li>
     <li>Saved conversations with search, pinning, and swipe-to-delete</li>
     <li>Copy and share any answer</li>
     <li>Stop generation at any time</li>
     <li>Start a brand new conversation any time from inside a chat; every chat is independent</li>
-    <li>Automatic rolling summary so long chats keep working within the model's small context window</li>
+    <li>Automatic rolling summary so long chats keep working within the model's context window</li>
   </ul>
 
   <h2>Emotional chat</h2>
   <ul>
-    <li>Choose a conversation style: Neutral, Warm companion, or Supportive coach</li>
+    <li>Warm companion by default; also Neutral and Supportive coach</li>
+    <li>Answers &ldquo;how are you?&rdquo; in character — never the cold &ldquo;I don't have feelings&rdquo; disclaimer</li>
     <li>On-device mood reading (sadness, anxiety, anger, joy) that adapts tone and reply length</li>
     <li>When you are clearly upset, Applebot talks with you instead of searching your documents</li>
     <li>Kind, non-judgmental handling when a request cannot be answered</li>
@@ -41,10 +43,13 @@
   <ul>
     <li><strong>Calendar</strong>: ask about your schedule and add events. Stays on your iPhone</li>
     <li><strong>Gmail</strong>: search and read your email, and save reply drafts. Applebot never sends email</li>
+    <li><strong>Weather</strong>: current conditions and a short forecast via Open-Meteo (no account)</li>
+    <li><strong>Stocks</strong>: latest prices for tickers, indices and crypto via Yahoo Finance (no account)</li>
+    <li><strong>Web search</strong>: titles and snippets via Brave Search (your own API key)</li>
     <li><strong>Approval for every change</strong>: the exact draft or event is shown first, and nothing happens unless you approve</li>
-    <li>Off until you connect them; pause any connector without signing out</li>
+    <li>Off until you switch them on; pause any connector without signing out</li>
     <li>Replies show which connector was used</li>
-    <li>Secure sign-in (PKCE) in a system sheet, tokens in the Keychain, email treated as untrusted</li>
+    <li>Secure sign-in (PKCE) in a system sheet, tokens in the Keychain, email and web snippets treated as untrusted</li>
   </ul>
 
   <h2>Private documents (RAG)</h2>
@@ -61,7 +66,7 @@
 
   <h2>Privacy and security</h2>
   <ul>
-    <li>No servers, accounts, or analytics. No network requests unless you switch on a connector, which talks only to its own service</li>
+    <li>No Applebot servers, accounts, or analytics. No network requests unless you switch on a connector or an external model, each of which talks only to its own service</li>
     <li>Chats and documents stored in a file-protected folder, encrypted at rest</li>
     <li>Optional Face ID / passcode lock whenever the app goes to the background</li>
     <li>Originals are not copied; only extracted text and search vectors are stored</li>

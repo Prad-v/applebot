@@ -1,6 +1,6 @@
 # User guide
 
-Applebot is a chat assistant that runs entirely on your iPhone. It works in airplane mode and never sends your messages or documents anywhere.
+Applebot is a chat assistant that runs on your iPhone by default. With the optional external model off, it works in airplane mode and never sends your messages or documents anywhere.
 
 ## Requirements
 
@@ -25,23 +25,35 @@ Long conversations are handled automatically: older messages are condensed into 
 
 In **Settings → Conversation style**, choose how Applebot talks:
 
-- **Neutral** (default): concise and factual.
-- **Warm companion**: kind and attentive. It listens first and acknowledges how you feel.
+- **Warm companion** (default): kind and attentive. It answers "how are you?" in character, listens first, and acknowledges how you feel.
+- **Neutral**: concise and factual.
 - **Supportive coach**: encouraging and practical, with one small next step.
 
 In the warm and coach styles, Applebot reads the mood of each message on your iPhone and adapts. If you are clearly upset it skips the document search so it can simply talk with you. Empty chats ask "How are you feeling today?". Applebot is not a therapist; if you are in crisis, contact your local emergency number or a crisis line. See [emotional chat](emotional-chat.md) for details.
 
-## Connectors: Gmail and Calendar
+## External model (OpenAI or Anthropic)
 
-Connectors let Applebot look things up in your accounts when you ask, and propose actions that you approve first. They are **off until you connect them**.
+Applebot uses Apple Intelligence on this iPhone unless you switch on an external model.
+
+1. Open **Settings → External model**.
+2. Choose **OpenAI** or **Anthropic**, paste your API key, and optionally pick a model.
+3. Turn on **Use external model**.
+
+Chats then call that provider over the network. A small banner in the chat reminds you that messages leave this iPhone. Turn the switch off any time to go back to the on-device model. Keys stay in the Keychain; see [external models](external-models.md) for base URLs, privacy details, and troubleshooting.
+
+## Connectors: accounts and live lookups
+
+Connectors let Applebot look things up in your accounts and on the web when you ask, and propose actions that you approve first. They are **off until you switch them on**.
 
 1. Open **Settings → Connected services → Connectors**.
-2. Tap **Connect Calendar** or **Connect Gmail** and follow the prompts. Keep **Use in chats** on, or switch it off to pause a connector.
-3. Ask in a chat, for example "What's on my calendar tomorrow?", "Any emails from Alice this week?", "Reply to Alice's lunch email saying yes", or "Add lunch with Sam tomorrow at 12:30".
+2. Connect **Calendar** or **Gmail**, or turn on **Use in chats** for **Weather**, **Stocks**, or **Web search**.
+3. Ask in a chat, for example "What's on my calendar tomorrow?", "Any emails from Alice this week?", "What's the weather in Paris?", "What's AAPL at?", "What did the Fed decide this week?", or "Add lunch with Sam tomorrow at 12:30".
 
-Reading happens straight away. Anything that **changes** something (saving a Gmail draft, adding a calendar event) shows a sheet with the exact content, and only happens if you tap the green button. **Don't allow**, dismissing the sheet, or leaving the chat all mean no. Applebot never sends email: it can only save a draft for you to review and send yourself.
+Reading and live lookups happen straight away. Anything that **changes** something (saving a Gmail draft, adding a calendar event) shows a sheet with the exact content, and only happens if you tap the green button. **Don't allow**, dismissing the sheet, or leaving the chat all mean no. Applebot never sends email: it can only save a draft for you to review and send yourself.
 
-Connectors work in chats that are **not** searching your documents. If you have documents in your library, a notice in the chat offers **Use Gmail and Calendar instead**. Gmail needs a one-time Google setup; see [connectors](connectors.md).
+Weather and Stocks need no setup. Gmail needs a Google OAuth client ID; Web search needs a Brave Search API key. See [connectors](connectors.md).
+
+Connectors work in chats that are **not** searching your documents. If you have documents in your library, a notice in the chat offers to use your active connectors instead.
 
 ## Chat with your documents
 
@@ -75,7 +87,7 @@ Good questions are specific ("What is the late fee on invoices?") rather than ve
 
 ## Privacy and security
 
-- **Fully on-device.** There are no servers, accounts, or analytics. With connectors off there are no network requests at all. A connector you switch on talks directly from your iPhone to its own service (for example Google) and nowhere else.
+- **On-device by default.** There are no Applebot servers, accounts, or analytics. With connectors and the external model off there are no network requests at all. A connector or external model you switch on talks directly from your iPhone to that service and nowhere else.
 - **Encrypted at rest.** Chats and the document library are stored in a protected folder (iOS file protection).
 - **App lock.** In **Settings → Privacy**, turn on **Require Face ID / passcode** to lock the app whenever it goes to the background.
 - **Delete everything.** **Settings → Delete all chats and documents** erases all data Applebot stores and signs out of connected accounts.
@@ -84,12 +96,13 @@ Good questions are specific ("What is the late fee on invoices?") rather than ve
 
 | Setting | Meaning |
 |---|---|
-| On-device model | Shows whether Apple Intelligence is ready, and why not if it is unavailable |
+| Model | Shows the active backend (Apple Intelligence or an external provider) and whether it is ready |
+| External model | Switch chats to OpenAI or Anthropic with your API key (see [external models](external-models.md)) |
 | Conversation style | Neutral, Warm companion, or Supportive coach (see [emotional chat](emotional-chat.md)) |
-| Passages per answer | How many retrieved passages are given to the model (2 to 6, default 4). More can help recall but the model's context is small, so passages may be trimmed |
+| Passages per answer | How many retrieved passages are given to the model (2 to 6, default 4). More can help recall; the on-device context is small, so passages may be trimmed |
 | Library | Number of documents and passages, and which embedding model indexes them |
 | Require Face ID / passcode | Locks the app in the background |
-| Connectors | Connect Gmail and Calendar and switch each on or off (see [connectors](connectors.md)) |
+| Connectors | Connect Gmail and Calendar, and switch Weather, Stocks and Web search on or off (see [connectors](connectors.md)) |
 
 ## Limits to be aware of
 

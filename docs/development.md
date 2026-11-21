@@ -26,6 +26,7 @@ Copy `.env.example` to `.env` to override. No secrets are required.
 | `SWIFT_IMAGE` | `swift:6.2` | Swift toolchain image for the test runner |
 | `SITE_PORT` | `8088` | Host port for the static site |
 | `GOOGLE_CLIENT_ID` | empty | Google OAuth client ID (iOS type) that enables the Gmail connector. Read by `make project`, which writes it to the git-ignored `ios/Local.xcconfig`. A public identifier, not a secret. See [connectors](connectors.md) |
+| `BRAVE_API_KEY` | empty | Brave Search API key that enables the Web search connector. Weather and Stocks need no key. Read by `make project` into `ios/Local.xcconfig`. Personal builds only; the key is compiled into the app. See [connectors](connectors.md) |
 
 ## Building and deploying the app (Makefile)
 
@@ -83,8 +84,8 @@ All tests live in **`tests/`** (one folder, by rule):
 
 | Path | What | Where it runs |
 |---|---|---|
-| `tests/LLMKitTests/` | Context budgeting, prompts, `ChatPipeline` (overflow retry, compaction, citations, tool calls), `ToolGuard` (approval, caps, trimming), Apple engine mapping and a live tool call | Docker (Linux); the Apple-only file runs on macOS |
-| `tests/ConnectorKitTests/` | OAuth/PKCE (NIST and RFC 7636 vectors, refresh, revoke), registry, Calendar and Gmail connectors against a mock HTTP client, approval-gate behaviour; Keychain test runs on macOS | Docker (Linux); the Keychain file runs on macOS |
+| `tests/LLMKitTests/` | Context budgeting, prompts, `ChatPipeline` (overflow retry, compaction, citations, tool calls), `ToolGuard` (approval, caps, trimming), external model streaming, Apple engine mapping and a live tool call | Docker (Linux); the Apple-only file runs on macOS |
+| `tests/ConnectorKitTests/` | OAuth/PKCE, registry, Calendar, Gmail, Weather / Stocks / Web search (`LiveDataConnectorTests`) against a mock HTTP client, approval-gate behaviour; Keychain test runs on macOS | Docker (Linux); the Keychain file runs on macOS |
 | `tests/RAGKitTests/` | Chunker, BM25, vectors, hybrid fusion/MMR, `KnowledgeBase`, retrieval eval, SQLite store, NaturalLanguage embedders | Docker (Linux); SQLite and NL tests run on macOS |
 | `tests/UITests/` | XCUITest smoke tests against the mock engine | macOS CI / local simulator |
 | `tests/fixtures/` | Sample documents and labelled retrieval questions | shared |

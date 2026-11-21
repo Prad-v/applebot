@@ -14,6 +14,7 @@
 #   TEAM_ID    Apple Developer team for signing    (default: detected from Xcode)
 #   MOCK=1     launch with the mock engine instead of Apple Intelligence (UI demo / no model needed)
 #   GOOGLE_CLIENT_ID  Google OAuth client ID that enables the Gmail connector (see docs/connectors.md)
+#   BRAVE_API_KEY     Brave Search API key that enables the Web search connector (see docs/connectors.md)
 
 -include .env
 export
@@ -60,6 +61,7 @@ project: check-xcode ## Generate the Xcode project (applies your signing team)
 	  : > $(IOS_DIR)/Local.xcconfig; \
 	fi
 	@if [ -n "$(GOOGLE_CLIENT_ID)" ]; then echo "GOOGLE_CLIENT_ID = $(GOOGLE_CLIENT_ID)" >> $(IOS_DIR)/Local.xcconfig; fi
+	@if [ -n "$(BRAVE_API_KEY)" ]; then echo "BRAVE_API_KEY = $(BRAVE_API_KEY)" >> $(IOS_DIR)/Local.xcconfig; fi
 	@cd $(IOS_DIR) && xcodegen generate --quiet
 	@echo "Project ready: $(PROJECT)  (team: $(if $(TEAM_ID),$(TEAM_ID),none: simulator only))"
 

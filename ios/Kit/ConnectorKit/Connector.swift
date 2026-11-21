@@ -58,6 +58,10 @@ public protocol Connector: Sendable {
     /// `true` for connectors with an account the user signs in to (and can sign out of); `false`
     /// for ones that use an on-device permission such as the calendar.
     var hasAccount: Bool { get }
+    /// `true` when using the connector sends something off the device (an account request, or a
+    /// city, ticker or search query). Settings uses it to say when the app touches the network.
+    /// Defaults to `hasAccount`; keyless lookups such as weather override it.
+    var usesNetwork: Bool { get }
 
     func status() async -> ConnectorStatus
     /// Sign in or request the permission. Throws `ConnectorError` on failure.
@@ -65,6 +69,10 @@ public protocol Connector: Sendable {
     /// Forget credentials. For permission-based connectors this is a no-op (iOS owns the permission).
     func disconnect() async
     func tools() -> [ToolSpec]
+}
+
+extension Connector {
+    public var usesNetwork: Bool { hasAccount }
 }
 
 /// Persists which connectors the user has switched on.
@@ -116,6 +124,7 @@ public struct ConnectorInfo: Sendable, Equatable, Identifiable {
     public var symbolName: String
     public var dataNote: String
     public var hasAccount: Bool
+    public var usesNetwork: Bool
     public var status: ConnectorStatus
     public var isEnabled: Bool
 
@@ -154,6 +163,7 @@ public actor ConnectorRegistry {
             rows.append(ConnectorInfo(
                 id: connector.id, displayName: connector.displayName, summary: connector.summary,
                 symbolName: connector.symbolName, dataNote: connector.dataNote, hasAccount: connector.hasAccount,
+                usesNetwork: connector.usesNetwork,
                 status: await connector.status(), isEnabled: enabled.contains(connector.id)
             ))
         }

@@ -9,8 +9,8 @@ Applebot can talk like a warm companion or a supportive coach instead of a conci
 
 | Style | Behaviour |
 |---|---|
-| **Neutral** (default) | The original concise, factual assistant. No mood reading. |
-| **Warm companion** | Kind and unhurried. Acknowledges feelings first, asks at most one gentle question, avoids lists. |
+| **Warm companion** (default) | Kind and unhurried. Answers "how are you?" in character, acknowledges feelings first, asks at most one gentle question. |
+| **Neutral** | The original concise, factual assistant. No mood reading. |
 | **Supportive coach** | Encouraging and practical. One sentence of empathy, then one small concrete next step. |
 
 3. Start a chat. In a warm or coach style the empty chat asks "How are you feeling today?" and offers conversation starters.
@@ -19,9 +19,10 @@ The style applies to the next message you send, in every chat.
 
 ## What happens to each message
 
-1. **Mood reading.** The message is scanned on the device for the main emotion (`sadness`, `anxiety`, `anger`, `joy`, or `neutral`) and how strong it is (1 to 5). Apple's on-device sentiment model is used as a fallback for messages with no obvious emotion words.
-2. **Tone guidance.** The reading adds a short instruction to the model, for example "The user seems anxious. Be calm and reassuring." Strong feelings also ask for shorter replies.
-3. **Documents step aside.** If you are clearly struggling (sadness, anxiety or anger at strength 3 or more) the document search is skipped for that message, so you get a conversation instead of "I couldn't find that in your documents." Calm questions still use your documents.
+1. **Companion cue.** Short check-ins like "How are you feeling today?" are detected so Applebot answers in the first person with a brief mood, instead of saying it has no feelings.
+2. **Mood reading.** The message is scanned on the device for the main emotion (`sadness`, `anxiety`, `anger`, `joy`, or `neutral`) and how strong it is (1 to 5). Apple's on-device sentiment model is used as a fallback for messages with no obvious emotion words.
+3. **Tone guidance.** The reading adds a short instruction to the model, for example "The user seems anxious. Be calm and reassuring." Strong feelings also ask for shorter replies.
+4. **Documents step aside.** If you are clearly struggling (sadness, anxiety or anger at strength 3 or more), or you are checking in on Applebot, the document search is skipped for that message so you get a conversation. Calm factual questions still use your documents.
 
 Neutral style never reads mood and behaves exactly as before.
 
@@ -39,6 +40,7 @@ All logic lives in `ios/Kit/LLMKit/Companion.swift` and is portable (tested on L
 |---|---|
 | `ChatTone` | `neutral`, `warm`, `coach`: display text and persona |
 | `Emotion`, `EmotionReading` | Detected feeling and intensity; `guidance` text and `needsSupport` flag |
+| `CompanionCue` | Detects "how are you?" / "do you feel…?" and injects first-person reply guidance |
 | `EmotionDetecting` | Protocol for detectors |
 | `LexiconEmotionDetector` | Keyword detector with negation, phrases and intensity boosts (all platforms) |
 | `SentimentEmotionDetector` | Lexicon plus Apple `NaturalLanguage` sentiment fallback (Apple platforms) |
@@ -52,7 +54,7 @@ let pipeline = ChatPipeline(
 // ChatResult.emotion holds the reading for the user's message.
 ```
 
-The tone is stored in `UserDefaults` under the key `chatTone` (`AppEnvironment.Keys.chatTone`). There are no network calls and no new environment variables.
+The tone is stored in `UserDefaults` under the key `chatTone` (`AppEnvironment.Keys.chatTone`), defaulting to **Warm companion**. Warm and coach styles also raise the on-device sampling temperature slightly so replies feel less flat. There are no network calls and no new environment variables.
 
 Tests: `tests/LLMKitTests/CompanionTests.swift`. Run them with `docker compose run --rm test`.
 

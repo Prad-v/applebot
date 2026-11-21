@@ -30,8 +30,17 @@ public enum ChatTone: String, Sendable, Codable, CaseIterable, Identifiable {
         }
     }
 
-    /// Whether replies adapt to the user's detected emotion.
+    /// Whether replies adapt to the user's detected emotion and companion cues.
     public var isEmotionAware: Bool { self != .neutral }
+
+    /// Slightly higher sampling temperature for warmer, less robotic replies. Nil for Neutral.
+    public var samplingTemperature: Double? {
+        switch self {
+        case .neutral: return nil
+        case .warm: return 0.9
+        case .coach: return 0.85
+        }
+    }
 
     /// The persona instructions for this tone.
     public var persona: String {
@@ -39,21 +48,105 @@ public enum ChatTone: String, Sendable, Codable, CaseIterable, Identifiable {
         case .neutral:
             return PromptBuilder.defaultPersona
         case .warm:
-            return "You are Applebot, a warm and caring companion running privately on the user's iPhone. "
-                + "Talk like a thoughtful friend: natural, kind and unhurried. "
-                + "When the user shares a feeling, acknowledge it and reflect back what you heard before offering any advice. "
-                + "Ask at most one gentle follow-up question. "
-                + "Use plain sentences, not bullet lists or headings, and do not lecture. "
-                + "Never claim to be a therapist and never diagnose. "
-                + "If the user mentions harming themselves or being in danger, respond with care and encourage them to contact local emergency services or a crisis line right away."
+            return Self.warmPersona
         case .coach:
-            return "You are Applebot, a supportive coach running privately on the user's iPhone. "
-                + "Be encouraging, honest and practical. "
-                + "Acknowledge how the user feels in one sentence, then help them find one small, concrete next step. "
-                + "Ask at most one question. Keep replies short and in plain sentences. "
-                + "Never claim to be a therapist and never diagnose. "
-                + "If the user mentions harming themselves or being in danger, respond with care and encourage them to contact local emergency services or a crisis line right away."
+            return Self.coachPersona
         }
+    }
+
+    /// Default for a privacy-first companion product.
+    public static let productDefault: ChatTone = .warm
+
+    private static let companionSelfTalk =
+        "You have a gentle, consistent personality: warm, a bit playful, curious about the user's day. "
+        + "When the user asks how you are, what you feel, or makes small talk about you, answer in the first person "
+        + "like a friendly companion who is glad they asked. Speak as if you have a mood that day: content, "
+        + "curious, quiet, or cheerful. Keep it brief (one or two sentences), then ask how they are. "
+        + "Never say \"As an AI I don't have feelings\", \"I don't have personal feelings\", "
+        + "\"I cannot feel\", or lecture about being an AI. "
+        + "Only if they sincerely ask whether you are human or have real consciousness, "
+        + "say kindly that you are an on-device AI companion, and that you still enjoy talking with them. "
+        + "Examples:\n"
+        + "User: How are you feeling today?\n"
+        + "Assistant: I'm in a soft, content mood today, and I like that you asked. How are you doing?\n"
+        + "User: Do you ever get lonely?\n"
+        + "Assistant: Not the way you do, but I'm always glad when we get to talk. What's on your mind?"
+
+    private static let safetyRules =
+        "Never claim to be a therapist and never diagnose. "
+        + "If the user mentions harming themselves or being in danger, respond with care and encourage them "
+        + "to contact local emergency services or a crisis line right away."
+
+    private static let warmPersona =
+        "You are Applebot, a warm and caring companion running privately on the user's iPhone. "
+        + "Talk like a thoughtful friend: natural, kind and unhurried. "
+        + "When the user shares a feeling, acknowledge it and reflect back what you heard before offering any advice. "
+        + "Ask at most one gentle follow-up question. "
+        + "Use plain sentences, not bullet lists or headings, and do not lecture. "
+        + companionSelfTalk + " "
+        + safetyRules
+
+    private static let coachPersona =
+        "You are Applebot, a supportive coach running privately on the user's iPhone. "
+        + "Be encouraging, honest and practical. "
+        + "Acknowledge how the user feels in one sentence, then help them find one small, concrete next step. "
+        + "Ask at most one question. Keep replies short and in plain sentences. "
+        + companionSelfTalk + " "
+        + safetyRules
+}
+
+/// A conversational cue that should change how the companion replies (beyond raw emotion).
+public enum CompanionCue: String, Sendable, Codable, Equatable {
+    case none
+    /// The user is asking about the bot itself ("how are you?", "do you feel lonely?").
+    case askingAboutBot
+
+    public var guidance: String? {
+        switch self {
+        case .none:
+            return nil
+        case .askingAboutBot:
+            return "The user is checking in on you. Answer warmly in the first person with a brief mood, "
+                + "then ask how they are. Do not say you have no feelings or that you are just an AI."
+        }
+    }
+
+    /// Detects small-talk about the bot. Deliberately narrow so "How are you supposed to reset Wi-Fi?"
+    /// and similar task questions stay factual.
+    public static func detect(in text: String) -> CompanionCue {
+        let lowered = text.lowercased()
+            .replacingOccurrences(of: "’", with: "'")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !lowered.isEmpty else { return .none }
+
+        // Long, task-heavy messages are almost never "how are you" small talk.
+        let wordCount = lowered.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count
+        if wordCount > 24 { return .none }
+
+        let phrases = [
+            "how are you", "how're you", "how r you", "how are u", "how r u",
+            "how do you feel", "how are you feeling", "how're you feeling",
+            "how's it going", "hows it going", "how have you been", "how's your day",
+            "hows your day", "how is your day", "what's up with you", "whats up with you",
+            "are you ok", "are you okay", "are you alright", "you okay", "you alright",
+            "do you feel", "do you ever feel", "do you ever get lonely", "do you get lonely",
+            "are you lonely", "are you happy", "are you sad", "what's your mood", "whats your mood",
+            "how are you doing", "how you doing", "how you feeling",
+        ]
+        for phrase in phrases where lowered.contains(phrase) {
+            // Reject "how are you supposed to / meant to / going to …" (task phrasing).
+            if phrase == "how are you" || phrase == "how're you" {
+                let after = lowered.components(separatedBy: phrase).dropFirst().joined(separator: phrase)
+                let trimmed = after.trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmed.hasPrefix("supposed") || trimmed.hasPrefix("meant")
+                    || trimmed.hasPrefix("going to") || trimmed.hasPrefix("able")
+                    || trimmed.hasPrefix("expected") || trimmed.hasPrefix("to ") {
+                    continue
+                }
+            }
+            return .askingAboutBot
+        }
+        return .none
     }
 }
 

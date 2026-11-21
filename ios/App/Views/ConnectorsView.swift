@@ -10,7 +10,7 @@ struct ConnectorsView: View {
         let model = environment.connectors
         List {
             Section {
-                Text("Connectors let Applebot look things up in your accounts when you ask. It only uses a connector while it is switched on, and it asks before it changes anything.")
+                Text("Connectors let Applebot look things up in your accounts and on the web, such as weather, stock prices and news, when you ask. It only uses a connector while it is switched on, and it asks before it changes anything.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -95,6 +95,11 @@ private struct ConnectorRow: View {
         switch row.status {
         case .notConnected: return "Not connected"
         case .connected(let account):
+            // Keyless lookups (weather, stocks, web search) have nothing to sign in to;
+            // "On" / "Off" matches the Use in chats toggle better than "Connected · paused".
+            if !row.hasAccount {
+                return row.isEnabled ? "On" : "Off"
+            }
             let name = account.map { "Connected as \($0)" } ?? "Connected"
             return row.isEnabled ? name : name + " · paused"
         case .unavailable(let why): return why
@@ -170,14 +175,15 @@ struct ConnectorNotice: View {
 
     var body: some View {
         let active = environment.connectors.activeNames
+        let names = ListFormatter.localizedString(byJoining: active)
         if !active.isEmpty, conversation.useDocuments, !environment.documents.isEmpty {
             HStack(alignment: .top, spacing: 10) {
                 Image(systemName: "link")
                     .foregroundStyle(.secondary)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("\(active.joined(separator: " and ")) is paused while this chat searches your documents.")
+                    Text("\(names) won't be used while this chat searches your documents.")
                         .font(.footnote)
-                    Button("Use \(active.joined(separator: " and ")) instead") {
+                    Button("Use \(names) instead") {
                         conversation.useDocuments = false
                     }
                     .font(.footnote.bold())

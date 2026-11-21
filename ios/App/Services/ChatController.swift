@@ -38,7 +38,8 @@ final class ChatController {
         let scope = DocumentScope.searchScope(conversation.scopeIDs, existing: existing)
         let tone = environment.chatTone
         let basePipeline = ChatPipeline(
-            engine: environment.engine,
+            engine: environment.activeEngine(),
+            context: ContextManager(windowTokens: environment.contextWindowTokens),
             prompts: PromptBuilder(tone: tone),
             emotionDetector: Self.emotionDetector,
             retriever: environment.knowledgeBase.retriever(limit: environment.retrievalLimit, scope: scope)

@@ -68,11 +68,37 @@ final class CompanionTests: XCTestCase {
         let builder = PromptBuilder(tone: .warm)
         XCTAssertTrue(builder.persona.contains("warm and caring companion"))
         XCTAssertTrue(builder.persona.contains("crisis line"))
+        XCTAssertTrue(builder.persona.contains("How are you feeling today?"))
+        XCTAssertTrue(builder.persona.contains("Never say"))
+        XCTAssertTrue(builder.persona.contains("I don't have personal feelings"))
         let text = builder.instructions(
             summary: nil, grounded: false, emotion: EmotionReading(emotion: .anxiety, intensity: 4)
         )
         XCTAssertTrue(text.contains("anxious"))
         XCTAssertTrue(text.contains("Keep the reply short"))
+    }
+
+    func testAskingAboutBotCueAddsGuidance() {
+        let text = PromptBuilder(tone: .warm).instructions(
+            summary: nil, grounded: false, cue: .askingAboutBot
+        )
+        XCTAssertTrue(text.contains("checking in on you"))
+        XCTAssertTrue(text.contains("first person"))
+        // Neutral tone ignores the cue.
+        let neutral = PromptBuilder(tone: .neutral).instructions(
+            summary: nil, grounded: false, cue: .askingAboutBot
+        )
+        XCTAssertFalse(neutral.contains("checking in on you"))
+    }
+
+    func testCompanionCueDetection() {
+        XCTAssertEqual(CompanionCue.detect(in: "How are you feeling today?"), .askingAboutBot)
+        XCTAssertEqual(CompanionCue.detect(in: "how are you?"), .askingAboutBot)
+        XCTAssertEqual(CompanionCue.detect(in: "Do you ever get lonely?"), .askingAboutBot)
+        XCTAssertEqual(CompanionCue.detect(in: "are you okay"), .askingAboutBot)
+        XCTAssertEqual(CompanionCue.detect(in: "How are you supposed to reset the router?"), .none)
+        XCTAssertEqual(CompanionCue.detect(in: "How does Wi-Fi work?"), .none)
+        XCTAssertEqual(CompanionCue.detect(in: ""), .none)
     }
 
     func testExplicitPersonaOverridesTone() {
@@ -87,6 +113,9 @@ final class CompanionTests: XCTestCase {
         }
         XCTAssertFalse(ChatTone.neutral.isEmotionAware)
         XCTAssertEqual(ChatTone(rawValue: "warm"), .warm)
+        XCTAssertEqual(ChatTone.productDefault, .warm)
+        XCTAssertEqual(ChatTone.warm.samplingTemperature, 0.9)
+        XCTAssertNil(ChatTone.neutral.samplingTemperature)
     }
 
     func testGuardrailMessageIsKind() {
@@ -145,5 +174,27 @@ final class CompanionTests: XCTestCase {
         )
         XCTAssertEqual(result.citedIndices, [1])
         XCTAssertTrue(engine.requests[0].instructions.contains("ONLY the numbered context"))
+    }
+
+    func testAskingHowAreYouSkipsDocumentsAndInjectsCue() async throws {
+        let snippets = [ContextSnippet(id: "1", title: "Notes", text: "Unrelated.")]
+        let engine = MockEngine(scripts: [.reply("I'm in a soft mood today. How are you?")])
+        let result = try await run(
+            "How are you feeling today?", tone: .warm, useDocuments: true,
+            retriever: { _ in snippets }, engine: engine
+        )
+        XCTAssertEqual(result.cue, .askingAboutBot)
+        XCTAssertTrue(result.snippets.isEmpty)
+        XCTAssertTrue(engine.requests[0].instructions.contains("checking in on you"))
+        XCTAssertEqual(engine.requests[0].temperature, 0.9)
+        XCTAssertFalse(engine.requests[0].instructions.contains("ONLY the numbered context"))
+    }
+
+    func testNeutralToneIgnoresHowAreYouCue() async throws {
+        let engine = MockEngine(scripts: [.reply("ok")])
+        let result = try await run("How are you feeling today?", tone: .neutral, engine: engine)
+        XCTAssertEqual(result.cue, .none)
+        XCTAssertNil(engine.requests[0].temperature)
+        XCTAssertFalse(engine.requests[0].instructions.contains("checking in on you"))
     }
 }

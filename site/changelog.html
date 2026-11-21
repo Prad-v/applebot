@@ -18,6 +18,22 @@
 <main>
   <h1>Changelog</h1>
 
+  <h2>0.4.0</h2>
+  <h3>Added</h3>
+  <ul>
+    <li><strong>Live data connectors</strong>: <strong>Weather</strong> (Open-Meteo), <strong>Stocks</strong> (Yahoo Finance) and <strong>Web search</strong> (Brave Search). Off until you switch them on; only the place, ticker or query leaves the device</li>
+    <li>Weather and Stocks need no API key. Web search is enabled with build setting <code>BRAVE_API_KEY</code></li>
+    <li>The model is told never to invent weather, prices, news or recent events when a live tool can help</li>
+    <li><strong>External models</strong>: Settings &rarr; External model lets you switch chats from Apple Intelligence to <strong>OpenAI</strong> or <strong>Anthropic</strong> with your own API key</li>
+    <li>Per-provider model name and optional base URL (OpenAI-compatible proxies and local servers). API keys are stored only in the Keychain on this iPhone</li>
+    <li>While the switch is on, chats stream from the configured provider; turn it off to return to the on-device model. Connectors and document search keep working with either backend</li>
+  </ul>
+  <h3>Changed</h3>
+  <ul>
+    <li>Settings shows the active model (on-device or external). Chats show a small notice when messages leave the iPhone for an external provider</li>
+    <li>Network summary in Settings reflects an enabled external model as well as connectors that use the network</li>
+  </ul>
+
   <h2>0.3.0</h2>
   <h3>Added</h3>
   <ul>
@@ -37,6 +53,14 @@
   <h3>Security</h3>
   <ul>
     <li>Email content is treated as untrusted data. There is no tool that sends, deletes or forwards mail, so a malicious email cannot make Applebot send anything</li>
+  </ul>
+
+  <h2>0.2.1</h2>
+  <ul>
+    <li>Warm companion is now the default conversation style</li>
+    <li>Answers &ldquo;how are you?&rdquo; in character instead of saying it has no feelings</li>
+    <li>Detects check-in questions about the bot and skips document search for those turns</li>
+    <li>Slightly warmer sampling for companion styles</li>
   </ul>
 
   <h2>0.2.0</h2>

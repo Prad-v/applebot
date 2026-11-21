@@ -17,7 +17,7 @@
 </header>
 <main>
   <h1>User guide</h1>
-  <p>Applebot is a chat assistant that runs entirely on your iPhone. It works in airplane mode and never sends your messages or documents anywhere. The only exception is a connector you choose to switch on (see below), which talks directly from your iPhone to its own service.</p>
+  <p>Applebot is a chat assistant that runs on your iPhone by default. With the optional external model off, it works in airplane mode and never sends your messages or documents anywhere. The only exceptions are a connector or an external model you switch on, each of which talks directly from your iPhone to that service.</p>
 
   <h2>Requirements</h2>
   <ul>
@@ -40,35 +40,47 @@
   <h2>Conversation style and emotional chat</h2>
   <p>In <strong>Settings &rarr; Conversation style</strong>, choose how Applebot talks:</p>
   <ul>
-    <li><strong>Neutral</strong> (default): concise and factual.</li>
-    <li><strong>Warm companion</strong>: kind and attentive. It listens first and acknowledges how you feel.</li>
+    <li><strong>Warm companion</strong> (default): kind and attentive. It answers &ldquo;how are you?&rdquo; in character, listens first, and acknowledges how you feel.</li>
+    <li><strong>Neutral</strong>: concise and factual.</li>
     <li><strong>Supportive coach</strong>: encouraging and practical, with one small next step.</li>
   </ul>
   <p>In the warm and coach styles, Applebot reads the mood of each message on your iPhone and adapts. If you are clearly upset it skips the document search so it can simply talk with you. Empty chats ask "How are you feeling today?".</p>
   <div class="callout">Applebot is not a therapist. If you are in crisis, contact your local emergency number or a crisis line.</div>
 
-  <h2 id="connectors">Connectors: Gmail and Calendar</h2>
-  <p>Connectors let Applebot look things up in your accounts when you ask, and propose actions that you approve first. They are <strong>off until you connect them</strong>.</p>
+  <h2 id="external-model">External model (OpenAI or Anthropic)</h2>
+  <p>Applebot uses Apple Intelligence on this iPhone unless you switch on an external model.</p>
+  <ol>
+    <li>Open <strong>Settings &rarr; External model</strong>.</li>
+    <li>Choose <strong>OpenAI</strong> or <strong>Anthropic</strong>, paste your API key, and optionally pick a model.</li>
+    <li>Turn on <strong>Use external model</strong>.</li>
+  </ol>
+  <p>Chats then call that provider over the network. A small banner in the chat reminds you that messages leave this iPhone. Turn the switch off any time to go back to the on-device model. Keys stay in the Keychain. You can also set a custom base URL for an OpenAI-compatible proxy or local server.</p>
+
+  <h2 id="connectors">Connectors: accounts and live lookups</h2>
+  <p>Connectors let Applebot look things up in your accounts and on the web when you ask, and propose actions that you approve first. They are <strong>off until you switch them on</strong>.</p>
   <ol>
     <li>Open <strong>Settings &rarr; Connected services &rarr; Connectors</strong>.</li>
-    <li>Tap <strong>Connect Calendar</strong> or <strong>Connect Gmail</strong> and follow the prompts. Keep <strong>Use in chats</strong> on, or switch it off to pause a connector without signing out.</li>
+    <li>Connect <strong>Calendar</strong> or <strong>Gmail</strong>, or turn on <strong>Use in chats</strong> for <strong>Weather</strong>, <strong>Stocks</strong>, or <strong>Web search</strong>.</li>
     <li>Ask in a chat. For example:
       <table>
         <tr><th>You ask</th><th>What happens</th></tr>
         <tr><td>"What's on my calendar tomorrow?"</td><td>Your calendar is read and summarised</td></tr>
         <tr><td>"Any emails from Alice this week?"</td><td>Gmail is searched and the results are summarised</td></tr>
+        <tr><td>"What's the weather in Paris?"</td><td>Open-Meteo returns current conditions and a short forecast</td></tr>
+        <tr><td>"What's AAPL at?"</td><td>Yahoo Finance returns the latest price and change</td></tr>
+        <tr><td>"What did the Fed decide this week?"</td><td>Brave Search returns titles and snippets to summarise</td></tr>
         <tr><td>"Reply to Alice's lunch email saying yes"</td><td>Applebot writes a reply and shows you the draft to approve</td></tr>
         <tr><td>"Add lunch with Sam tomorrow at 12:30"</td><td>An approval sheet shows the event; it is added only if you approve</td></tr>
       </table>
     </li>
   </ol>
   <h3>Approvals</h3>
-  <p>Reading happens straight away. Anything that <strong>changes</strong> something, such as saving a Gmail draft or adding a calendar event, shows a sheet with the exact content (recipient, subject and text, or the event's title, time and place). It only happens if you tap the green button. <strong>Don't allow</strong>, dismissing the sheet, or leaving the chat all mean no.</p>
-  <div class="callout">Applebot never sends email. It can only save a draft in Gmail for you to review and send yourself.</div>
+  <p>Reading and live lookups happen straight away. Anything that <strong>changes</strong> something, such as saving a Gmail draft or adding a calendar event, shows a sheet with the exact content (recipient, subject and text, or the event's title, time and place). It only happens if you tap the green button. <strong>Don't allow</strong>, dismissing the sheet, or leaving the chat all mean no.</p>
+  <div class="callout">Applebot never sends email. It can only save a draft in Gmail for you to review and send yourself. Weather, Stocks and Web search are read-only.</div>
   <h3>Connectors and documents</h3>
-  <p>Connectors work in chats that are <strong>not</strong> searching your documents. If you have documents in your library, a notice in the chat offers <strong>Use Gmail and Calendar instead</strong>.</p>
-  <h3>Setting up Gmail</h3>
-  <p>Calendar needs no setup. Gmail needs a one-time Google registration: create an OAuth client of type <strong>iOS</strong> with bundle ID <code>dev.kekaflow.applebot</code> in Google Cloud Console, enable the Gmail API, add yourself as a test user, then build with <code>GOOGLE_CLIENT_ID=&lt;your id&gt; make project</code>. Full steps, limits and the security model are in <code>docs/connectors.md</code>. Google test-mode sign-ins last 7 days, after which you connect again.</p>
+  <p>Connectors work in chats that are <strong>not</strong> searching your documents. If you have documents in your library, a notice in the chat offers to use your active connectors instead.</p>
+  <h3>Setup</h3>
+  <p>Calendar, Weather and Stocks need no build-time setup. Gmail needs a Google OAuth client of type <strong>iOS</strong> with bundle ID <code>dev.kekaflow.applebot</code>, then <code>GOOGLE_CLIENT_ID=&lt;your id&gt; make project</code>. Web search needs a Brave Search API key and <code>BRAVE_API_KEY=&lt;key&gt; make project</code>. Full steps are in <code>docs/connectors.md</code>.</p>
 
   <h2>Chat with your documents</h2>
   <h3>Add documents</h3>
@@ -101,7 +113,7 @@
 
   <h2>Privacy and security</h2>
   <ul>
-    <li><strong>Fully on-device.</strong> No servers, accounts, or analytics. With connectors off there are no network requests at all. A connector you switch on talks directly from your iPhone to its own service (for example Google) and nowhere else.</li>
+    <li><strong>On-device by default.</strong> No Applebot servers, accounts, or analytics. With connectors and the external model off there are no network requests at all. A connector or external model you switch on talks directly from your iPhone to that service and nowhere else.</li>
     <li><strong>Connector safety.</strong> Sign-in uses Google's secure sheet (Applebot never sees your password) and the token is kept in the iOS Keychain. Email text is treated as untrusted, and nothing is changed without your approval.</li>
     <li><strong>Encrypted at rest.</strong> Chats and the document library live in a file-protected folder.</li>
     <li><strong>App lock.</strong> In <strong>Settings &rarr; Privacy</strong>, turn on <em>Require Face ID / passcode</em> to lock the app whenever it goes to the background.</li>
@@ -111,12 +123,13 @@
   <h2>Settings reference</h2>
   <table>
     <tr><th>Setting</th><th>Meaning</th></tr>
-    <tr><td>On-device model</td><td>Whether Apple Intelligence is ready, and why not if it is unavailable</td></tr>
+    <tr><td>Model</td><td>The active backend (Apple Intelligence or an external provider) and whether it is ready</td></tr>
+    <tr><td>External model</td><td>Switch chats to OpenAI or Anthropic with your API key</td></tr>
     <tr><td>Conversation style</td><td>Neutral, Warm companion, or Supportive coach</td></tr>
     <tr><td>Passages per answer</td><td>How many retrieved passages the model receives (2 to 6, default 4). More can help recall, but the model's context is small so passages may be trimmed</td></tr>
     <tr><td>Library</td><td>Number of documents and passages, and the embedding model used for search</td></tr>
     <tr><td>Require Face ID / passcode</td><td>Locks the app in the background</td></tr>
-    <tr><td>Connectors</td><td>Connect Gmail and Calendar, and switch each on or off</td></tr>
+    <tr><td>Connectors</td><td>Connect Gmail and Calendar, and switch Weather, Stocks and Web search on or off</td></tr>
   </table>
 
   <h2>Limits to be aware of</h2>
@@ -129,15 +142,17 @@
   <h2>Troubleshooting</h2>
   <table>
     <tr><th>Problem</th><th>What to do</th></tr>
-    <tr><td>Banner: device does not support Apple Intelligence</td><td>Use an iPhone 15 Pro or newer</td></tr>
-    <tr><td>Banner: turn on Apple Intelligence</td><td>Settings &rarr; Apple Intelligence &amp; Siri &rarr; turn on</td></tr>
+    <tr><td>Banner: device does not support Apple Intelligence</td><td>Use an iPhone 15 Pro or newer, or enable an external model</td></tr>
+    <tr><td>Banner: turn on Apple Intelligence</td><td>Settings &rarr; Apple Intelligence &amp; Siri &rarr; turn on, or use an external model</td></tr>
     <tr><td>Banner: model still downloading</td><td>Stay on Wi-Fi and power and try again in a few minutes. The download is needed once, never for chatting</td></tr>
+    <tr><td>Banner: add your API key</td><td>Paste a key under Settings &rarr; External model, or turn the external switch off</td></tr>
     <tr><td>Answers ignore my documents</td><td>Check <em>Use my documents</em> and the search scope in the chat menu, then open <em>Why this answer?</em> to see what was retrieved</td></tr>
     <tr><td>"I couldn't find that in your documents"</td><td>Rephrase using terms from the document, or choose the specific document in the search scope</td></tr>
     <tr><td>"The conversation is too long"</td><td>Shorten the question, lower <em>Passages per answer</em>, or start a new chat</td></tr>
     <tr><td>The New Chat button is greyed out</td><td>The current chat is still empty, so it is already a new conversation</td></tr>
     <tr><td>A chat stopped using a document I attached</td><td>The document was deleted from the library; attach it again</td></tr>
-    <tr><td>Applebot never uses Gmail or Calendar</td><td>The chat may be searching documents (tap <em>Use Gmail and Calendar instead</em>), or the connector is paused or not connected</td></tr>
+    <tr><td>Applebot never uses a connector</td><td>The chat may be searching documents (use the notice to switch), or the connector is paused or not connected</td></tr>
+    <tr><td>Invented weather or stock price</td><td>Turn on Weather / Stocks under Connectors, leave documents off for that chat, and ask with a place or ticker</td></tr>
     <tr><td>Settings says to add a Google client ID</td><td>Gmail is not set up yet; see <em>Setting up Gmail</em> above</td></tr>
     <tr><td>Gmail says "session expired"</td><td>Google test-mode sign-ins last 7 days. Connect Gmail again</td></tr>
     <tr><td>Calendar access was denied</td><td>Settings app &rarr; Applebot &rarr; Calendars &rarr; Full Access</td></tr>

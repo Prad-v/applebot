@@ -25,15 +25,20 @@ struct ImportJob: Identifiable, Equatable {
 @MainActor
 @Observable
 final class AppEnvironment {
-    let engine: any LLMEngine
+    /// On-device (or mock) engine. Prefer `activeEngine` for chats — that honours the external-model switch.
+    let onDeviceEngine: any LLMEngine
     let knowledgeBase: KnowledgeBase
     let embedderIdentifier: String
+    /// OpenAI / Anthropic settings and Keychain-backed API keys.
+    let externalStore: ExternalModelStore
     /// Gmail, Calendar and any other connectors the user has switched on.
     let connectors: ConnectorsModel
     /// Holds a chat while the user decides on an action the assistant proposed.
     let approvals = ApprovalCoordinator()
 
     private(set) var availability: EngineAvailability
+    /// Short label for Settings and the chat banner (on-device vs the active external provider).
+    private(set) var modelSummary: String = "Apple Intelligence (on-device)"
     private(set) var documents: [DocumentRecord] = []
     private(set) var chunkCount = 0
     private(set) var imports: [ImportJob] = []
@@ -42,6 +47,8 @@ final class AppEnvironment {
     var isLocked: Bool
 
     @ObservationIgnored private let defaults = UserDefaults.standard
+    /// Injected in UI tests so Settings can exercise the external path without a network.
+    @ObservationIgnored private let externalTransport: (any StreamingTransport)?
 
     var lockEnabled: Bool {
         didSet {
@@ -55,10 +62,19 @@ final class AppEnvironment {
         return stored == 0 ? 4 : min(max(stored, 2), 6)
     }
 
-    /// How Applebot talks (Settings → Conversation style).
+    /// How Applebot talks (Settings → Conversation style). Defaults to Warm companion.
     var chatTone: ChatTone {
-        ChatTone(rawValue: defaults.string(forKey: Keys.chatTone) ?? "") ?? .neutral
+        ChatTone(rawValue: defaults.string(forKey: Keys.chatTone) ?? "") ?? .productDefault
     }
+
+    /// True when the Settings toggle is on (even if the key is still missing).
+    var externalModelEnabled: Bool { externalStore.isEnabled }
+
+    /// True when chats will actually call an external provider right now.
+    var isUsingExternalModel: Bool { externalStore.activeConfig() != nil }
+
+    /// Context window budget for the active engine. External models get a much larger window.
+    var contextWindowTokens: Int { isUsingExternalModel ? 128_000 : 4096 }
 
     enum Keys {
         static let lockEnabled = "lockEnabled"
@@ -66,13 +82,25 @@ final class AppEnvironment {
         static let chatTone = "chatTone"
     }
 
+    /// Compatibility for call sites that still read `.engine` — always the engine chats should use.
+    var engine: any LLMEngine { activeEngine() }
+
     init(useMockEngine: Bool = ProcessInfo.processInfo.arguments.contains("-UITestMockEngine")) {
         let defaults = UserDefaults.standard
         lockEnabled = defaults.bool(forKey: Keys.lockEnabled)
         isLocked = defaults.bool(forKey: Keys.lockEnabled)
 
-        engine = useMockEngine ? Self.makeMockEngine() : AppleFMEngine()
-        availability = engine.availability()
+        onDeviceEngine = useMockEngine ? Self.makeMockEngine() : AppleFMEngine()
+        externalTransport = useMockEngine ? Self.makeMockExternalTransport() : nil
+        #if canImport(Security)
+        let secrets: any SecretStore = useMockEngine ? InMemorySecretStore() : KeychainSecretStore()
+        #else
+        let secrets: any SecretStore = InMemorySecretStore()
+        #endif
+        externalStore = ExternalModelStore(
+            defaults: useMockEngine ? UserDefaults(suiteName: "applebot.uitest.external") ?? .standard : .standard,
+            secrets: secrets
+        )
 
         let embedder = EmbedderFactory.preferred()
         embedderIdentifier = embedder.identifier
@@ -91,6 +119,18 @@ final class AppEnvironment {
             connectors: Self.makeConnectors(mock: useMockEngine),
             preferences: useMockEngine ? InMemoryConnectorPreferences() : UserDefaultsConnectorPreferences()
         ))
+
+        availability = .available
+        refreshAvailability()
+    }
+
+    /// The engine chats should use right now (external when the switch is on and configured).
+    func activeEngine() -> any LLMEngine {
+        guard let config = externalStore.activeConfig() else { return onDeviceEngine }
+        if let transport = externalTransport {
+            return ExternalEngine(config: config, transport: transport)
+        }
+        return ExternalEngine(config: config)
     }
 
     // MARK: Lifecycle
@@ -104,8 +144,10 @@ final class AppEnvironment {
         await refreshDocuments()
         refreshAvailability()
         await connectors.refresh()
-        if let engine = engine as? AppleFMEngine {
-            engine.prewarm(instructions: PromptBuilder().instructions(summary: nil, grounded: false))
+        if !isUsingExternalModel, let engine = onDeviceEngine as? AppleFMEngine {
+            engine.prewarm(
+                instructions: PromptBuilder(tone: chatTone).instructions(summary: nil, grounded: false)
+            )
         }
     }
 
@@ -123,7 +165,34 @@ final class AppEnvironment {
     }
 
     func refreshAvailability() {
-        availability = engine.availability()
+        if externalStore.isEnabled {
+            let config = externalStore.config(for: externalStore.selectedProvider)
+            if let problem = config.problem {
+                availability = .unavailable(problem)
+                modelSummary = "\(config.provider.displayName) (not ready)"
+            } else {
+                availability = .available
+                modelSummary = "\(config.provider.displayName) · \(config.effectiveModel)"
+            }
+            return
+        }
+        availability = onDeviceEngine.availability()
+        modelSummary = "Apple Intelligence (on-device)"
+    }
+
+    func setExternalModelEnabled(_ enabled: Bool) {
+        externalStore.isEnabled = enabled
+        refreshAvailability()
+    }
+
+    func selectExternalProvider(_ provider: ExternalProvider) {
+        externalStore.selectedProvider = provider
+        refreshAvailability()
+    }
+
+    func saveExternalConfig(_ config: ExternalModelConfig) throws {
+        try externalStore.save(config)
+        refreshAvailability()
     }
 
     // MARK: Lock
@@ -271,6 +340,7 @@ final class AppEnvironment {
         try? modelContext.save()
         await refreshDocuments()
         await connectors.disconnectAll()
+        // API keys are Settings, not chat data — leave them. The user can clear them under External model.
     }
 
     // MARK: Connectors
@@ -292,10 +362,23 @@ final class AppEnvironment {
         return engine
     }
 
+    /// Canned OpenAI-style SSE so UI tests can flip the external switch without calling a real API.
+    private static func makeMockExternalTransport() -> MockStreamingTransport {
+        MockStreamingTransport { _ in
+            MockStreamingTransport.Reply(status: 200, lines: [
+                #"data: {"choices":[{"delta":{"content":"External mock reply."}}]}"#,
+                #"data: {"choices":[{"delta":{},"finish_reason":"stop"}]}"#,
+                "data: [DONE]",
+            ])
+        }
+    }
+
     private static func makeConnectors(mock: Bool) -> [any Connector] {
         let web = WebAuthSession()
         if mock {
-            // UI tests and `make sim MOCK=1`: no permission prompts, no network, no Keychain.
+            // UI tests and `make sim MOCK=1`: no permission prompts, no Keychain. The live-data
+            // connectors only touch the network when switched on and called, which the mock
+            // engine never does, and web search has no key here.
             let now = Date()
             let sample = CalendarEventInfo(
                 id: "demo-1", title: "Design review", start: now.addingTimeInterval(3600),
@@ -304,16 +387,24 @@ final class AppEnvironment {
             return [
                 CalendarConnector(provider: InMemoryCalendarProvider(permission: .notDetermined, events: [sample])),
                 GmailConnector(configuration: nil, store: InMemoryTokenStore(), web: web),
+                WeatherConnector(),
+                StocksConnector(),
+                WebSearchConnector(configuration: nil),
             ]
         }
-        // The client ID is injected at build time from GOOGLE_CLIENT_ID (see docs/connectors.md).
+        // The client ID and search key are injected at build time from GOOGLE_CLIENT_ID and
+        // BRAVE_API_KEY (see docs/connectors.md).
         let clientID = Bundle.main.object(forInfoDictionaryKey: "GoogleOAuthClientID") as? String ?? ""
+        let searchKey = Bundle.main.object(forInfoDictionaryKey: "BraveSearchAPIKey") as? String ?? ""
         return [
             CalendarConnector(provider: EventKitCalendarProvider()),
             GmailConnector(
                 configuration: GmailConfiguration(clientID: clientID),
                 store: KeychainTokenStore(), web: web
             ),
+            WeatherConnector(),
+            StocksConnector(),
+            WebSearchConnector(configuration: WebSearchConfiguration(apiKey: searchKey)),
         ]
     }
 }

@@ -5,14 +5,16 @@ Applebot has three Swift libraries (`LLMKit`, `RAGKit`, `ConnectorKit`) with no 
 ```
 SwiftUI app (ios/App)
  ├─ Views: Chats, Chat, Documents, Settings, Lock
- ├─ AppEnvironment  engine · KnowledgeBase · connectors · approvals · availability · import jobs · app lock
+ ├─ AppEnvironment  onDeviceEngine · externalStore · activeEngine() · KnowledgeBase · connectors · approvals · availability · import jobs · app lock
  ├─ ConnectorsModel / ApprovalCoordinator   connector settings state · pauses a chat until the user approves an action
  ├─ ChatController  one per chat screen; persists messages (SwiftData)
  │
  ├─ LLMKit
  │   ├─ LLMEngine (protocol)      stream(request) -> cumulative text
  │   │   ├─ AppleFMEngine         FoundationModels (iOS 26+)
+ │   │   ├─ ExternalEngine        OpenAI / Anthropic (optional; Keychain API keys)
  │   │   └─ MockEngine            tests, previews, simulators without Apple Intelligence
+ │   ├─ ExternalModelStore        provider, enable flag, per-provider model/base URL + SecretStore
  │   ├─ ContextManager            token budgeting and trimming
  │   ├─ PromptBuilder             instructions (persona by `ChatTone`, mood guidance, grounding rules, summary), numbered context, query rewrite, summaries
  │   ├─ Companion                 ChatTone, EmotionReading, on-device emotion detectors (see emotional-chat.md)
@@ -23,7 +25,11 @@ SwiftUI app (ios/App)
  │   ├─ Connector / ConnectorRegistry   which tools the model is offered
  │   ├─ OAuthSession              PKCE sign-in, refresh, revoke · TokenStore (Keychain)
  │   ├─ CalendarConnector         CalendarProvider: EventKit (device) · in-memory (tests)
- │   └─ GmailConnector            GmailClient: search, read, save draft (no send)
+ │   ├─ GmailConnector            GmailClient: search, read, save draft (no send)
+ │   ├─ WeatherConnector          Open-Meteo geocode + forecast (no key)
+ │   ├─ StocksConnector           Yahoo Finance chart / search (no key)
+ │   ├─ WebSearchConnector        Brave Search API (BRAVE_API_KEY)
+ │   └─ LiveData                  shared URL / fetch / decode helpers for live lookups
  │
  └─ RAGKit
      ├─ DocumentExtractor         text / Markdown / RTF · PDFKit (+ Vision OCR) · images (Vision OCR)
@@ -79,7 +85,8 @@ The knowledge base records the embedder identifier. If it changes (for example, 
 
 ## Extension points
 
-- **Another model**: implement `LLMEngine` (for example MLX Swift or llama.cpp) and inject it in `AppEnvironment`.
+- **Another cloud provider**: add an `ExternalProvider` case and an `ExternalProviderAdapter` (request + SSE parse), then surface it in Settings. See [external models](external-models.md).
+- **Another local model**: implement `LLMEngine` (for example MLX Swift or llama.cpp) and inject it in `AppEnvironment`.
 - **Another embedder**: implement `Embedder`; the identifier drives automatic reindexing.
 - **Another file type**: implement `TextExtractor` and register it in `DocumentExtractor`.
-- **Connectors** (Gmail, Calendar today): implement `Connector` and register it in `AppEnvironment.makeConnectors`. Tools are plain `ToolSpec` data; `AppleFMEngine.DynamicTool` adapts them to Foundation Models. See [connectors](connectors.md).
+- **Connectors** (Gmail, Calendar today): implement `Connector` and register it in `AppEnvironment.makeConnectors`. Tools are plain `ToolSpec` data; `AppleFMEngine.DynamicTool` / `ExternalEngine` adapt them. See [connectors](connectors.md).

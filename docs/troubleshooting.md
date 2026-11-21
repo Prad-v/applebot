@@ -4,16 +4,18 @@
 
 | Banner | Cause | Fix |
 |---|---|---|
-| "This device does not support Apple Intelligence." | iPhone older than 15 Pro | Use a supported iPhone (15 Pro or newer) |
-| "Turn on Apple Intelligence in Settings to chat." | Apple Intelligence is off | **Settings → Apple Intelligence & Siri** → turn on (tap **Open Settings** in the banner) |
+| "This device does not support Apple Intelligence." | iPhone older than 15 Pro | Use a supported iPhone (15 Pro or newer), or enable an [external model](external-models.md) |
+| "Turn on Apple Intelligence in Settings to chat." | Apple Intelligence is off | **Settings → Apple Intelligence & Siri** → turn on (tap **Open Settings** in the banner), or use an external model |
 | "The on-device model is still downloading." | Model assets not ready yet | Stay on Wi-Fi and power; try again in a few minutes. Needs internet once, never for chatting |
+| "Add your OpenAI/Anthropic API key." | External model switch is on without a key | Paste a key under **Settings → External model**, or turn the switch off |
+| "The API key was rejected" | Wrong or revoked key | Paste a fresh key for the selected provider |
 | Other | Unsupported region/language configuration | Check your device language and region support Apple Intelligence |
 
-The send button stays disabled until the model is ready.
+The send button stays disabled until the active model is ready.
 
-## "The conversation is too long for the on-device model."
+## "The conversation is too long for the model."
 
-The context window is small (about 4,000 tokens). Applebot compacts automatically and retries with tighter budgets, so this appears only when a single message plus the minimum context still does not fit. Shorten the question, reduce **Passages per answer** in Settings, or start a new chat.
+On the on-device model the context window is small (about 4,000 tokens). Applebot compacts automatically and retries with tighter budgets, so this appears only when a single message plus the minimum context still does not fit. Shorten the question, reduce **Passages per answer** in Settings, or start a new chat. External models use a much larger window; if you still see this, the provider hit its own output or context limit.
 
 ## "I can't help with that one, but I'm happy to try if you put it another way."
 
@@ -56,18 +58,21 @@ Large PDFs index in the background with a progress bar; keep the app open while 
 
 If the device has no passcode or biometrics, the lock cannot protect anything and the app unlocks automatically. Set a device passcode first.
 
-## Connectors (Gmail and Calendar)
+## Connectors (accounts and live lookups)
 
 Full table in [connectors](connectors.md#troubleshooting). The common ones:
 
 | Problem | Fix |
 |---|---|
 | Settings says to add `GOOGLE_CLIENT_ID` | Create a Google OAuth client (iOS type, bundle ID `dev.kekaflow.applebot`) and run `GOOGLE_CLIENT_ID=... make project` |
+| Settings says to add `BRAVE_API_KEY` | Get a Brave Search API key and run `BRAVE_API_KEY=... make project` |
 | Google: "app has not completed verification" | Add your account as a **Test user** on the OAuth consent screen |
 | "Gmail API has not been used in project …" | Enable the Gmail API in that Google Cloud project |
 | "Your session expired. Reconnect…" | Google test-mode sign-ins last 7 days. Connect again |
 | "Calendar access was denied" | Settings app → Applebot → Calendars → Full Access |
-| Applebot never uses Gmail or Calendar | The chat is using documents (use the notice's **Use … instead** button), or the connector is paused or not connected |
+| "Couldn't reach Open-Meteo / Yahoo Finance / Brave Search" | Check the internet connection and try again |
+| Applebot invents weather or a stock price | Turn on **Use in chats** for Weather / Stocks, leave documents off for that chat, and ask with a place or ticker |
+| Applebot never uses a connector | The chat is using documents (use the notice's **Use … instead** button), or the connector is paused or not connected |
 
 ## Build and test issues
 

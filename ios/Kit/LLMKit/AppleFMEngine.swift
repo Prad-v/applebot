@@ -51,7 +51,13 @@ public struct AppleFMEngine: ToolCallingEngine {
                         tools: try tools.map { try DynamicTool($0) },
                         instructions: request.instructions
                     )
-                    for try await snapshot in session.streamResponse(to: request.prompt) {
+                    let options: GenerationOptions
+                    if let temperature = request.temperature {
+                        options = GenerationOptions(temperature: temperature)
+                    } else {
+                        options = GenerationOptions()
+                    }
+                    for try await snapshot in session.streamResponse(to: request.prompt, options: options) {
                         continuation.yield(snapshot.content)
                     }
                     continuation.finish()

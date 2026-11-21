@@ -62,7 +62,7 @@ struct LockView: View {
     }
 }
 
-/// Banner shown when the on-device model cannot answer yet.
+/// Banner shown when the active model cannot answer yet.
 struct AvailabilityBanner: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(\.openURL) private var openURL
@@ -75,8 +75,12 @@ struct AvailabilityBanner: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(environment.availability.message)
                         .font(.subheadline)
-                    if environment.availability == .appleIntelligenceDisabled,
-                       let url = URL(string: "app-settings:") {
+                    if environment.externalModelEnabled {
+                        Text("Fix the external model in Settings, or turn it off to use Apple Intelligence on this iPhone.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else if environment.availability == .appleIntelligenceDisabled,
+                              let url = URL(string: "app-settings:") {
                         Button("Open Settings") { openURL(url) }
                             .font(.subheadline.bold())
                     }
@@ -88,6 +92,18 @@ struct AvailabilityBanner: View {
             .padding(.horizontal)
             .padding(.top, 8)
             .accessibilityIdentifier("availability-banner")
+        } else if environment.isUsingExternalModel {
+            HStack(spacing: 10) {
+                Image(systemName: "cloud")
+                    .foregroundStyle(.secondary)
+                Text("Using \(environment.modelSummary). Messages leave this iPhone.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .accessibilityIdentifier("external-model-banner")
         }
     }
 }

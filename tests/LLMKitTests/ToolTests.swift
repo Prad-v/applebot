@@ -264,5 +264,8 @@ final class ChatPipelineToolTests: XCTestCase {
         let text = PromptBuilder.toolInstructions(now: Date(timeIntervalSince1970: 1_795_000_000), timeZone: zone)
         XCTAssertTrue(text.contains("America/Los_Angeles"))
         XCTAssertTrue(text.contains("2026-11-1"))
+        XCTAssertTrue(text.contains("weather, stock prices and web search"))
+        XCTAssertTrue(text.contains("Never answer those from memory"))
+        XCTAssertTrue(text.contains("Report numbers exactly as the tool gives them"))
     }
 }
