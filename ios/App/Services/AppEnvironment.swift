@@ -80,10 +80,18 @@ final class AppEnvironment {
         static let lockEnabled = "lockEnabled"
         static let retrievalLimit = "retrievalLimit"
         static let chatTone = "chatTone"
+        static let memoryEnabled = MemoryStore.Keys.enabled
+        static let voiceAutoSpeak = VoiceController.Keys.autoSpeak
+        static let voiceHandsFree = VoiceController.Keys.handsFree
     }
 
     /// Compatibility for call sites that still read `.engine` — always the engine chats should use.
     var engine: any LLMEngine { activeEngine() }
+
+    /// Cross-chat memories (Settings → What Applebot remembers).
+    let memory = MemoryStore()
+    /// On-device speech input and spoken replies.
+    let voice = VoiceController()
 
     init(useMockEngine: Bool = ProcessInfo.processInfo.arguments.contains("-UITestMockEngine")) {
         let defaults = UserDefaults.standard
@@ -135,6 +143,11 @@ final class AppEnvironment {
 
     // MARK: Lifecycle
 
+    /// Bind SwiftData so memory facts can load. Call once from the root view.
+    func attachModelContext(_ context: ModelContext) {
+        memory.attach(context: context)
+    }
+
     func start() async {
         do {
             try await knowledgeBase.open()
@@ -144,19 +157,24 @@ final class AppEnvironment {
         await refreshDocuments()
         refreshAvailability()
         await connectors.refresh()
+        voice.refreshOnDeviceAvailability()
         if !isUsingExternalModel, let engine = onDeviceEngine as? AppleFMEngine {
             engine.prewarm(
-                instructions: PromptBuilder(tone: chatTone).instructions(summary: nil, grounded: false)
+                instructions: PromptBuilder(tone: chatTone).instructions(
+                    summary: nil, grounded: false, memories: memory.promptBlock
+                )
             )
         }
     }
 
     func scenePhaseChanged(_ phase: ScenePhase) {
         switch phase {
-        case .background:
-            if lockEnabled { isLocked = true }
+        case .background, .inactive:
+            voice.stopAll()
+            if phase == .background, lockEnabled { isLocked = true }
         case .active:
             refreshAvailability()
+            voice.refreshOnDeviceAvailability()
             // Permissions can change in the Settings app while Applebot is in the background.
             Task { await connectors.refresh() }
         default:
@@ -333,15 +351,18 @@ final class AppEnvironment {
         await refreshDocuments()
     }
 
-    /// Erase the document library and all chats.
+    /// Erase the document library, chats and cross-chat memories.
     func deleteAllData(modelContext: ModelContext) async {
+        voice.stopAll()
         try? await knowledgeBase.removeAll()
         try? modelContext.delete(model: Conversation.self)
+        memory.deleteAll()
         try? modelContext.save()
         await refreshDocuments()
         await connectors.disconnectAll()
         // API keys are Settings, not chat data — leave them. The user can clear them under External model.
     }
+
 
     // MARK: Connectors
 

@@ -21,6 +21,14 @@ Tap the compose button in the chat's top bar to start a fresh conversation at an
 
 Long conversations are handled automatically: older messages are condensed into a short summary so the model can keep going within its small context window.
 
+## Memory across chats
+
+In **Settings → Memory → What Applebot remembers**, leave **Remember across chats** on to keep short facts (names, preferences, upcoming events) on this iPhone and use them in every chat. You can pin or delete each fact. See [memory](memory.md).
+
+## Voice
+
+Tap the **mic** in a chat to speak. Applebot only uses **on-device** speech recognition; if that is unavailable for your language, the mic stays off. Turn on **Settings → Voice → Speak replies** to hear answers, and **Hands-free conversation** to listen again after each reply. See [voice](voice.md).
+
 ## Conversation style and emotional chat
 
 In **Settings → Conversation style**, choose how Applebot talks:
@@ -99,6 +107,8 @@ Good questions are specific ("What is the late fee on invoices?") rather than ve
 | Model | Shows the active backend (Apple Intelligence or an external provider) and whether it is ready |
 | External model | Switch chats to OpenAI or Anthropic with your API key (see [external models](external-models.md)) |
 | Conversation style | Neutral, Warm companion, or Supportive coach (see [emotional chat](emotional-chat.md)) |
+| What Applebot remembers | Cross-chat facts on this iPhone (see [memory](memory.md)) |
+| Speak replies / Hands-free | On-device voice conversation (see [voice](voice.md)) |
 | Passages per answer | How many retrieved passages are given to the model (2 to 6, default 4). More can help recall; the on-device context is small, so passages may be trimmed |
 | Library | Number of documents and passages, and which embedding model indexes them |
 | Require Face ID / passcode | Locks the app in the background |

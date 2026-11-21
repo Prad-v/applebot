@@ -75,7 +75,7 @@ struct ChatView: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
-                    controller.stop()
+                    controller.stop(environment: environment)
                     onNewChat()
                 } label: {
                     Label("New Chat", systemImage: "square.and.pencil")
@@ -126,9 +126,18 @@ struct ChatView: View {
             photoItems = []
             Task { await attachPhotos(items) }
         }
-        .onAppear { pruneScope() }
+        .onAppear {
+            pruneScope()
+            environment.voice.onUtterance = { text in
+                draft = text
+                send(text)
+            }
+        }
         .onChange(of: environment.documents) { _, _ in pruneScope() }
-        .onDisappear { controller.stop() }
+        .onDisappear {
+            controller.stop(environment: environment)
+            environment.voice.onUtterance = nil
+        }
     }
 
     private var scopeLabel: String {
@@ -138,9 +147,30 @@ struct ChatView: View {
     private var inputBar: some View {
         VStack(spacing: 0) {
             attachmentsStrip
+            voiceStatus
             composer
         }
         .background(.bar)
+    }
+
+    @ViewBuilder
+    private var voiceStatus: some View {
+        let voice = environment.voice
+        if let status = voice.statusMessage ?? voice.errorMessage {
+            Text(status)
+                .font(.caption)
+                .foregroundStyle(voice.errorMessage == nil ? Color.secondary : Color.orange)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal)
+                .padding(.top, 6)
+        } else if voice.phase == .listening, !voice.partialTranscript.isEmpty {
+            Text(voice.partialTranscript)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal)
+                .padding(.top, 6)
+        }
     }
 
     private var composer: some View {
@@ -156,9 +186,11 @@ struct ChatView: View {
                 .accessibilityIdentifier("message-field")
                 .onSubmit { send(draft) }
 
-            if controller.isResponding {
+            micButton
+
+            if controller.isResponding || environment.voice.phase == .speaking {
                 Button {
-                    controller.stop()
+                    controller.stop(environment: environment)
                 } label: {
                     Image(systemName: "stop.circle.fill").font(.system(size: 32))
                 }
@@ -176,6 +208,19 @@ struct ChatView: View {
         }
         .padding(.horizontal)
         .padding(.vertical, 8)
+    }
+
+    private var micButton: some View {
+        Button {
+            environment.voice.toggleListening()
+        } label: {
+            Image(systemName: environment.voice.phase == .listening ? "mic.circle.fill" : "mic.circle")
+                .font(.system(size: 32))
+                .foregroundStyle(environment.voice.phase == .listening ? Color.accentColor : Color.secondary)
+        }
+        .accessibilityLabel(environment.voice.phase == .listening ? "Stop listening" : "Speak")
+        .accessibilityIdentifier("mic")
+        .disabled(controller.isResponding)
     }
 
     /// "+" menu: bring documents into this conversation.
@@ -274,6 +319,7 @@ struct ChatView: View {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         draft = ""
+        environment.voice.stopListening(submit: false)
         controller.send(trimmed, conversation: conversation, environment: environment, context: modelContext)
     }
 }

@@ -59,18 +59,21 @@ public struct PromptBuilder: Sendable {
     /// System instructions. Includes the rolling summary of older turns when present.
     /// `toolNote` is `toolInstructions(now:)` when connector tools are active.
     /// `emotion` and `cue` adapt the reply for emotion-aware tones only.
+    /// `memories` is the cross-chat "Things you remember" block from `MemoryBudget.render`.
     public func instructions(
         summary: String?,
         grounded: Bool,
         toolNote: String? = nil,
         emotion: EmotionReading? = nil,
-        cue: CompanionCue = .none
+        cue: CompanionCue = .none,
+        memories: String? = nil
     ) -> String {
         var parts = [persona]
         if tone.isEmotionAware {
             if let guidance = emotion?.guidance { parts.append(guidance) }
             if let guidance = cue.guidance { parts.append(guidance) }
         }
+        if let memories, !memories.isEmpty { parts.append(memories) }
         if grounded { parts.append(Self.groundingRules) }
         if let toolNote, !toolNote.isEmpty { parts.append(toolNote) }
         if let summary, !summary.isEmpty {

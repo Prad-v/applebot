@@ -37,11 +37,13 @@ final class ChatController {
         let useDocuments = conversation.useDocuments && !environment.documents.isEmpty
         let scope = DocumentScope.searchScope(conversation.scopeIDs, existing: existing)
         let tone = environment.chatTone
+        environment.voice.stopSpeaking()
         let basePipeline = ChatPipeline(
             engine: environment.activeEngine(),
             context: ContextManager(windowTokens: environment.contextWindowTokens),
             prompts: PromptBuilder(tone: tone),
             emotionDetector: Self.emotionDetector,
+            memories: environment.memory.promptBlock,
             retriever: environment.knowledgeBase.retriever(limit: environment.retrievalLimit, scope: scope)
         )
         let state = ChatState(summary: conversation.summary, history: history)
@@ -94,6 +96,14 @@ final class ChatController {
                         self.finalize(result, message: message, conversation: conversation,
                                       question: question, inputHistoryCount: history.count)
                         message.toolsUsed = usedTools
+                        environment.voice.speak(result.answer)
+                        Task {
+                            await environment.memory.learn(
+                                question: question,
+                                answer: result.answer,
+                                engine: environment.activeEngine()
+                            )
+                        }
                     }
                 }
             } catch {
@@ -109,6 +119,11 @@ final class ChatController {
 
     func stop() {
         task?.cancel()
+    }
+
+    func stop(environment: AppEnvironment) {
+        task?.cancel()
+        environment.voice.stopAll()
     }
 
     /// Retry the last failed question.

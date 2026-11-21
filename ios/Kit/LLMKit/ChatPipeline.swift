@@ -58,6 +58,8 @@ public struct ChatPipeline: Sendable {
     public var prompts: PromptBuilder
     /// Reads the user's mood for emotion-aware tones (`prompts.tone`).
     public var emotionDetector: (any EmotionDetecting)?
+    /// Cross-chat memory block already rendered by `MemoryBudget.render` (optional).
+    public var memories: String?
     public var retriever: SnippetRetriever?
     /// Connector tools the model may call. Only offered when documents are not grounding the answer
     /// (grounded mode tells the model to use ONLY the passages, which conflicts with tool use) and
@@ -79,6 +81,7 @@ public struct ChatPipeline: Sendable {
         context: ContextManager = ContextManager(),
         prompts: PromptBuilder = PromptBuilder(),
         emotionDetector: (any EmotionDetecting)? = LexiconEmotionDetector(),
+        memories: String? = nil,
         retriever: SnippetRetriever? = nil,
         tools: [ToolSpec] = [],
         approver: ToolApprover? = nil,
@@ -93,6 +96,7 @@ public struct ChatPipeline: Sendable {
         self.context = context
         self.prompts = prompts
         self.emotionDetector = emotionDetector
+        self.memories = memories
         self.retriever = retriever
         self.tools = tools
         self.approver = approver
@@ -164,7 +168,8 @@ public struct ChatPipeline: Sendable {
 
         func instructionsText(summary: String?) -> String {
             prompts.instructions(
-                summary: summary, grounded: grounded, toolNote: toolNote, emotion: emotion, cue: cue
+                summary: summary, grounded: grounded, toolNote: toolNote,
+                emotion: emotion, cue: cue, memories: memories
             )
         }
 

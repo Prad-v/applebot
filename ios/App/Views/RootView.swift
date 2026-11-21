@@ -2,6 +2,7 @@ import SwiftUI
 
 struct RootView: View {
     @Environment(AppEnvironment.self) private var environment
+    @Environment(\.modelContext) private var modelContext
 
     var body: some View {
         ZStack {
@@ -25,6 +26,7 @@ struct RootView: View {
             }
         }
         .animation(.easeInOut(duration: 0.2), value: environment.isLocked)
+        .onAppear { environment.attachModelContext(modelContext) }
         // Actions the assistant proposes (save a draft, add an event) always wait for the user here.
         // Dismissing the sheet counts as "Don't allow".
         .sheet(item: Binding(

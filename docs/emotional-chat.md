@@ -69,4 +69,4 @@ Tests: `tests/LLMKitTests/CompanionTests.swift`. Run them with `docker compose r
 
 ## Not yet included
 
-Crisis-phrase detection with a fixed helpline response, long-term personal memory, mood-tinted bubbles, haptics, and daily check-ins are planned follow-ups.
+Crisis-phrase detection with a fixed helpline response, mood-tinted bubbles, haptics, and daily check-ins are planned follow-ups. Long-term memory and voice are documented in [memory](memory.md) and [voice](voice.md).

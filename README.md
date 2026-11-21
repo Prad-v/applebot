@@ -5,6 +5,8 @@ A private, **fully offline ChatGPT-style assistant for iPhone**. It runs Apple's
 - **General chat** with streaming answers, saved conversations, search, pinning.
 - **Chat with my documents**: import PDFs, text, Markdown, and photos (OCR). Answers cite their sources, and "Why this answer?" shows exactly what the model was given.
 - **Emotional chat**: choose a warm companion or supportive coach style; Applebot reads your mood on-device and adapts its tone.
+- **Long-term memory**: remembers durable facts across chats on-device; review them in Settings.
+- **Voice**: speak to Applebot and hear replies; on-device recognition only (no cloud fallback).
 - **Connectors**: **Gmail**, **Calendar**, **Weather**, **Stocks** and **Web search**. Reads and live lookups run when you ask; drafts and events only after you approve the exact content. See [docs/connectors.md](docs/connectors.md).
 - **External models (optional)**: in Settings, switch chats to **OpenAI** or **Anthropic** with your own API key. Off by default; keys stay in the Keychain. See [docs/external-models.md](docs/external-models.md).
 - **Private by construction**: by default everything stays on the device, encrypted at rest, optional Face ID lock. With connectors and the external model off there are no network requests at all.
@@ -19,6 +21,8 @@ A private, **fully offline ChatGPT-style assistant for iPhone**. It runs Apple's
 | [docs/connectors.md](docs/connectors.md) | Gmail, Calendar, Weather, Stocks and Web search: setup, approvals, security model, tool reference, adding a connector |
 | [docs/external-models.md](docs/external-models.md) | Optional OpenAI / Anthropic chat backends: keys, privacy, OpenAI-compatible base URLs |
 | [docs/emotional-chat.md](docs/emotional-chat.md) | Warm companion / coach styles, mood reading, safety notes |
+| [docs/memory.md](docs/memory.md) | Cross-chat memory: what is stored, controls, privacy |
+| [docs/voice.md](docs/voice.md) | Mic input, spoken replies, hands-free, on-device-only policy |
 | [docs/rag.md](docs/rag.md) | Chunking, embeddings, hybrid retrieval, evaluation |
 | [docs/development.md](docs/development.md) | Building, Docker Compose workflow, tests, CI, environment variables |
 | [docs/troubleshooting.md](docs/troubleshooting.md) | Common problems and fixes |

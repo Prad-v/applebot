@@ -2,6 +2,18 @@
 
 All notable changes to Applebot are documented here. Versions follow semantic versioning.
 
+## 0.5.0
+
+### Added
+- **Long-term memory**: durable facts across chats, stored on-device in SwiftData. Settings → What Applebot remembers to review, pin, delete, or turn off.
+- Memory extraction after each turn (on-device model + heuristic fallback); injected into prompts with a small token budget.
+- **Voice conversation**: mic button with **on-device-only** speech recognition (cloud recognition is refused).
+- **Speak replies** via on-device `AVSpeechSynthesizer`, and optional **Hands-free** listen-after-speak loop.
+- Docs: [docs/memory.md](docs/memory.md), [docs/voice.md](docs/voice.md).
+
+### Changed
+- Delete-all also clears remembered facts. Backgrounding stops listening and speaking.
+
 ## 0.4.0
 
 ### Added

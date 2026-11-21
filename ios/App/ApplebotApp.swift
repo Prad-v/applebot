@@ -15,7 +15,10 @@ struct ApplebotApp: App {
             configuration = ModelConfiguration(url: AppPaths.dataDirectory.appendingPathComponent("chats.store"))
         }
         do {
-            return try ModelContainer(for: Conversation.self, ChatMessage.self, configurations: configuration)
+            return try ModelContainer(
+                for: Conversation.self, ChatMessage.self, MemoryRecord.self,
+                configurations: configuration
+            )
         } catch {
             fatalError("Could not create the chat database: \(error)")
         }

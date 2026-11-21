@@ -64,6 +64,40 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    NavigationLink {
+                        MemoriesView()
+                    } label: {
+                        LabeledContent(
+                            "What Applebot remembers",
+                            value: environment.memory.isEnabled
+                                ? (environment.memory.facts.isEmpty ? "On" : "\(environment.memory.facts.count)")
+                                : "Off"
+                        )
+                    }
+                    .accessibilityIdentifier("memories-link")
+                } header: {
+                    Text("Memory")
+                } footer: {
+                    Text("Facts stay on this iPhone and can be used in every chat. Open the list to pin or delete them.")
+                }
+
+                Section {
+                    Toggle("Speak replies", isOn: Bindable(environment.voice).autoSpeak)
+                        .accessibilityIdentifier("voice-auto-speak")
+                    Toggle("Hands-free conversation", isOn: Bindable(environment.voice).handsFree)
+                        .disabled(!environment.voice.autoSpeak)
+                        .accessibilityIdentifier("voice-hands-free")
+                    LabeledContent(
+                        "On-device speech",
+                        value: environment.voice.onDeviceRecognitionAvailable ? "Available" : "Unavailable"
+                    )
+                } header: {
+                    Text("Voice")
+                } footer: {
+                    Text("Speech recognition and spoken replies stay on this iPhone. If on-device recognition is unavailable for your language, the mic stays off so audio is never sent to Apple's servers. Hands-free listens again after each spoken reply.")
+                }
+
+                Section {
                     Stepper("Passages per answer: \(retrievalLimit)", value: $retrievalLimit, in: 2...6)
                 } header: {
                     Text("Documents")
@@ -90,7 +124,7 @@ struct SettingsView: View {
                 Section {
                     Button("Delete all chats and documents", role: .destructive) { confirmDelete = true }
                 } footer: {
-                    Text("Removes everything Applebot stores on this device and signs out of connected accounts. This cannot be undone.")
+                    Text("Removes chats, documents, memories, and signs out of connected accounts. This cannot be undone.")
                 }
 
                 Section("About") {
@@ -106,7 +140,7 @@ struct SettingsView: View {
                     Task { await environment.deleteAllData(modelContext: modelContext) }
                 }
             } message: {
-                Text("All chats and the document library will be erased from this device.")
+                Text("All chats, documents, and remembered facts will be erased from this device.")
             }
         }
     }
