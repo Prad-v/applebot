@@ -1,0 +1,19 @@
+[
+  { "question": "How do I factory reset the Aurora router?", "document": "aurora-router", "phrase": "reset button" },
+  { "question": "What does a red status light mean on the router?", "document": "aurora-router", "phrase": "red" },
+  { "question": "When does the router check for firmware updates?", "document": "aurora-router", "phrase": "3 a.m." },
+  { "question": "Can guests see my printers on the guest Wi-Fi?", "document": "aurora-router", "phrase": "printers" },
+  { "question": "How often should I feed my sourdough starter at room temperature?", "document": "sourdough-guide", "phrase": "twelve hours" },
+  { "question": "How long does bulk fermentation take?", "document": "sourdough-guide", "phrase": "five hours" },
+  { "question": "What temperature should the Dutch oven be preheated to?", "document": "sourdough-guide", "phrase": "250 degrees" },
+  { "question": "Why is my loaf dense?", "document": "sourdough-guide", "phrase": "under-fermented" },
+  { "question": "Where did we see moose on the hike?", "document": "trail-journal", "phrase": "moose" },
+  { "question": "Who twisted an ankle near the scree?", "document": "trail-journal", "phrase": "Lena" },
+  { "question": "How far was the total hiking distance?", "document": "trail-journal", "phrase": "41 kilometers" },
+  { "question": "What time was the sunrise at Summit Point?", "document": "trail-journal", "phrase": "6:40" },
+  { "question": "When are the estimated tax payments due?", "document": "tax-notes", "phrase": "June 15" },
+  { "question": "How much of a client dinner can I deduct?", "document": "tax-notes", "phrase": "fifty percent" },
+  { "question": "What is the mileage rate this year?", "document": "tax-notes", "phrase": "0.67" },
+  { "question": "What late fee do I add to invoices?", "document": "tax-notes", "phrase": "two percent" },
+  { "question": "Who is my accountant?", "document": "tax-notes", "phrase": "Okafor" }
+]

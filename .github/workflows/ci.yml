@@ -1,0 +1,65 @@
+name: CI
+
+# Every push and pull request runs all tests. Linux jobs run inside Docker Compose; the macOS job
+# exists only because Apple frameworks and the iOS Simulator cannot run in a container.
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests-present:
+    name: Tests accompany code changes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Require changes under tests/ when source changes
+        env:
+          GITHUB_EVENT_BEFORE: ${{ github.event.before }}
+        run: tests/ci/check_tests_present.sh
+
+  unit-tests:
+    name: Unit tests + retrieval eval (Docker)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run LLMKit and RAGKit tests
+        run: docker compose run --rm --build test
+
+  docs-check:
+    name: Docs and static site (Docker)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose run --rm docs-check
+
+  apple-tests:
+    name: Apple-only tests + iOS build (macOS)
+    runs-on: macos-26
+    needs: [unit-tests]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_26.app || true
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Swift package tests (SQLite, NaturalLanguage, FoundationModels mapping)
+        run: swift test
+      - name: Generate Xcode project
+        run: cd ios && xcodegen generate
+      - name: Build app and run UI smoke tests (mock engine)
+        run: |
+          xcodebuild test \
+            -project ios/Applebot.xcodeproj \
+            -scheme Applebot \
+            -destination 'platform=iOS Simulator,name=iPhone 17' \
+            CODE_SIGNING_ALLOWED=NO
+
+# Deployment note: Applebot is an on-device iOS app with no server component, so there is no Helm
+# chart. If a backend is ever added it must live in backend/services/ with a chart in helm/, and this
+# workflow should gain a main-branch job that bumps Chart.yaml and the values.yaml image tag.

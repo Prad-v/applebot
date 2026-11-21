@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Features: Applebot</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site">
+  <nav>
+    <a class="brand" href="index.html">Applebot</a>
+    <a class="link" href="features.html" aria-current="page">Features</a>
+    <a class="link" href="user-guide.html">User guide</a>
+    <a class="link" href="changelog.html">Changelog</a>
+  </nav>
+</header>
+<main>
+  <h1>Features</h1>
+
+  <h2>Chat</h2>
+  <ul>
+    <li>Streaming answers from Apple's on-device language model</li>
+    <li>Saved conversations with search, pinning, and swipe-to-delete</li>
+    <li>Copy and share any answer</li>
+    <li>Stop generation at any time</li>
+    <li>Start a brand new conversation any time from inside a chat; every chat is independent</li>
+    <li>Automatic rolling summary so long chats keep working within the model's small context window</li>
+  </ul>
+
+  <h2>Emotional chat</h2>
+  <ul>
+    <li>Choose a conversation style: Neutral, Warm companion, or Supportive coach</li>
+    <li>On-device mood reading (sadness, anxiety, anger, joy) that adapts tone and reply length</li>
+    <li>When you are clearly upset, Applebot talks with you instead of searching your documents</li>
+    <li>Kind, non-judgmental handling when a request cannot be answered</li>
+    <li>Nothing leaves your iPhone: mood reading runs locally</li>
+  </ul>
+
+  <h2>Connectors</h2>
+  <ul>
+    <li><strong>Calendar</strong>: ask about your schedule and add events. Stays on your iPhone</li>
+    <li><strong>Gmail</strong>: search and read your email, and save reply drafts. Applebot never sends email</li>
+    <li><strong>Approval for every change</strong>: the exact draft or event is shown first, and nothing happens unless you approve</li>
+    <li>Off until you connect them; pause any connector without signing out</li>
+    <li>Replies show which connector was used</li>
+    <li>Secure sign-in (PKCE) in a system sheet, tokens in the Keychain, email treated as untrusted</li>
+  </ul>
+
+  <h2>Private documents (RAG)</h2>
+  <ul>
+    <li>Import PDF, text, Markdown, RTF, CSV, JSON, YAML, and images; or paste text</li>
+    <li>On-device OCR for scanned PDFs and photos of documents</li>
+    <li>Hybrid retrieval: semantic vectors plus BM25 keywords, fused and de-duplicated</li>
+    <li>Answers with citations like <code>[1]</code>, and a "Why this answer?" view of the search query and passages</li>
+    <li>Honest "not found in your documents" answers instead of guesses</li>
+    <li>Attach documents to a chat with the <strong>+</strong> button: Files, Photos, pasted text, or your library</li>
+    <li>Per-chat search scope: all documents or the attached subset, shown as removable chips</li>
+    <li>Duplicate detection when re-importing the same content</li>
+  </ul>
+
+  <h2>Privacy and security</h2>
+  <ul>
+    <li>No servers, accounts, or analytics. No network requests unless you switch on a connector, which talks only to its own service</li>
+    <li>Chats and documents stored in a file-protected folder, encrypted at rest</li>
+    <li>Optional Face ID / passcode lock whenever the app goes to the background</li>
+    <li>Originals are not copied; only extracted text and search vectors are stored</li>
+    <li>Delete all chats and documents in one tap, which also signs out of connected accounts</li>
+  </ul>
+
+  <h2>Quality</h2>
+  <ul>
+    <li>Retrieval quality measured with recall@k and MRR, gated in CI</li>
+    <li>Automatic recovery from context-window overflow</li>
+    <li>Clear status when Apple Intelligence is unavailable, and how to fix it</li>
+  </ul>
+
+  <h2>Coming later</h2>
+  <ul>
+    <li>Voice input and spoken answers, fully on-device</li>
+    <li>More connectors: Reminders, Drive and others</li>
+    <li>Share extension and Siri / Shortcuts integration</li>
+  </ul>
+</main>
+<footer>Applebot &middot; everything runs on your device.</footer>
+</body>
+</html>

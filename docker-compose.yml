@@ -1,0 +1,46 @@
+# Local development and CI entry points. Everything that can run off the Mac runs here.
+#
+#   docker compose run --rm test        # unit tests + retrieval eval (Linux, no host deps)
+#   docker compose up --build site      # static user guide at http://localhost:${SITE_PORT:-8088}
+#   docker compose run --rm eval        # retrieval-quality report only
+#   docker compose run --rm docs-check  # docs/site link + changelog consistency
+#
+# The iOS app itself needs Xcode and cannot be built in a container; see docs/development.md.
+
+services:
+  test:
+    build:
+      context: .
+      dockerfile: tests/Dockerfile
+      args:
+        SWIFT_IMAGE: ${SWIFT_IMAGE:-swift:6.2}
+    image: applebot-tests:local
+    working_dir: /work
+    volumes:
+      - ./Package.swift:/work/Package.swift:ro
+      - ./ios/Kit:/work/ios/Kit:ro
+      - ./tests:/work/tests:ro
+      - swiftpm-build:/build
+    command: ["swift", "test", "--build-path", "/build"]
+
+  eval:
+    extends:
+      service: test
+    command: ["swift", "test", "--build-path", "/build", "--filter", "RetrievalEvalTests"]
+
+  docs-check:
+    image: python:3.12-alpine
+    working_dir: /repo
+    volumes:
+      - .:/repo:ro
+    command: ["python", "tests/ci/check_docs.py"]
+
+  site:
+    image: nginx:1.27-alpine
+    ports:
+      - "${SITE_PORT:-8088}:80"
+    volumes:
+      - ./site:/usr/share/nginx/html:ro
+
+volumes:
+  swiftpm-build:

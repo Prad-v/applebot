@@ -1,0 +1,196 @@
+import SwiftUI
+import ConnectorKit
+import LLMKit
+
+/// Settings > Connectors: connect accounts and switch each one on or off for chats.
+struct ConnectorsView: View {
+    @Environment(AppEnvironment.self) private var environment
+
+    var body: some View {
+        let model = environment.connectors
+        List {
+            Section {
+                Text("Connectors let Applebot look things up in your accounts when you ask. It only uses a connector while it is switched on, and it asks before it changes anything.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            ForEach(model.rows) { row in
+                ConnectorRow(row: row, model: model)
+            }
+        }
+        .navigationTitle("Connectors")
+        .navigationBarTitleDisplayMode(.inline)
+        .task { await model.refresh() }
+        .alert("Couldn't connect", isPresented: Binding(
+            get: { model.errorMessage != nil },
+            set: { if !$0 { model.errorMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(model.errorMessage ?? "")
+        }
+    }
+}
+
+private struct ConnectorRow: View {
+    let row: ConnectorInfo
+    let model: ConnectorsModel
+
+    private var isBusy: Bool { model.busyID == row.id }
+
+    var body: some View {
+        Section {
+            HStack(spacing: 12) {
+                Image(systemName: row.symbolName)
+                    .font(.title3)
+                    .frame(width: 32, height: 32)
+                    .foregroundStyle(.tint)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(row.displayName).font(.headline)
+                    Text(statusText)
+                        .font(.footnote)
+                        .foregroundStyle(statusColor)
+                }
+                Spacer()
+                if isBusy { ProgressView() }
+            }
+            .accessibilityElement(children: .combine)
+
+            switch row.status {
+            case .notConnected:
+                Button("Connect \(row.displayName)") {
+                    Task { await model.connect(row.id) }
+                }
+                .disabled(model.busyID != nil)
+                .accessibilityIdentifier("connect-\(row.id)")
+
+            case .connected:
+                Toggle("Use in chats", isOn: Binding(
+                    get: { row.isEnabled },
+                    set: { value in Task { await model.setEnabled(row.id, value) } }
+                ))
+                .accessibilityIdentifier("toggle-\(row.id)")
+                if row.hasAccount {
+                    Button("Disconnect", role: .destructive) {
+                        Task { await model.disconnect(row.id) }
+                    }
+                    .disabled(model.busyID != nil)
+                    .accessibilityIdentifier("disconnect-\(row.id)")
+                }
+
+            case .unavailable:
+                EmptyView()
+            }
+        } header: {
+            EmptyView()
+        } footer: {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(row.summary)
+                Text(row.dataNote)
+            }
+        }
+    }
+
+    private var statusText: String {
+        switch row.status {
+        case .notConnected: return "Not connected"
+        case .connected(let account):
+            let name = account.map { "Connected as \($0)" } ?? "Connected"
+            return row.isEnabled ? name : name + " · paused"
+        case .unavailable(let why): return why
+        }
+    }
+
+    private var statusColor: Color {
+        switch row.status {
+        case .connected: return row.isEnabled ? .green : .secondary
+        case .notConnected: return .secondary
+        case .unavailable: return .orange
+        }
+    }
+}
+
+/// Shown whenever the assistant wants to change something. Displays the exact content so the user
+/// approves what will really happen, not a summary of it.
+struct ApprovalSheet: View {
+    let request: ApprovalRequest
+    var onDecision: (Bool) -> Void
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Applebot wants to do this. Nothing happens unless you approve.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                ScrollView {
+                    Text(request.detail)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(14)
+                }
+                .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
+                .accessibilityIdentifier("approval-detail")
+
+                VStack(spacing: 10) {
+                    Button {
+                        onDecision(true)
+                    } label: {
+                        Text(request.confirmLabel).frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .accessibilityIdentifier("approval-approve")
+
+                    Button(role: .cancel) {
+                        onDecision(false)
+                    } label: {
+                        Text("Don't allow").frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
+                    .accessibilityIdentifier("approval-decline")
+                }
+            }
+            .padding()
+            .navigationTitle(request.title)
+            .navigationBarTitleDisplayMode(.inline)
+        }
+        .presentationDetents([.medium, .large])
+    }
+}
+
+/// Explains why connectors are idle in a chat that is answering from documents, and offers the fix.
+///
+/// Document answers are told to use only the retrieved passages, which conflicts with calling
+/// tools, so the pipeline offers connector tools only when documents are off for the chat.
+struct ConnectorNotice: View {
+    @Bindable var conversation: Conversation
+    @Environment(AppEnvironment.self) private var environment
+
+    var body: some View {
+        let active = environment.connectors.activeNames
+        if !active.isEmpty, conversation.useDocuments, !environment.documents.isEmpty {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "link")
+                    .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("\(active.joined(separator: " and ")) is paused while this chat searches your documents.")
+                        .font(.footnote)
+                    Button("Use \(active.joined(separator: " and ")) instead") {
+                        conversation.useDocuments = false
+                    }
+                    .font(.footnote.bold())
+                    .accessibilityIdentifier("use-connectors-instead")
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(10)
+            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12))
+            .padding(.horizontal)
+            .padding(.top, 8)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("connector-notice")
+        }
+    }
+}

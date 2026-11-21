@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Changelog: Applebot</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site">
+  <nav>
+    <a class="brand" href="index.html">Applebot</a>
+    <a class="link" href="features.html">Features</a>
+    <a class="link" href="user-guide.html">User guide</a>
+    <a class="link" href="changelog.html" aria-current="page">Changelog</a>
+  </nav>
+</header>
+<main>
+  <h1>Changelog</h1>
+
+  <h2>0.3.0</h2>
+  <h3>Added</h3>
+  <ul>
+    <li><strong>Connectors</strong>: Applebot can use <strong>Gmail</strong> and your <strong>Calendar</strong> when you ask (Settings &rarr; Connected services &rarr; Connectors). Off until you connect them; each can be paused without signing out</li>
+    <li><strong>Calendar</strong>: ask about your schedule and add events. Reads stay on the iPhone</li>
+    <li><strong>Gmail</strong>: search and read your email, and save a reply draft. Applebot never sends email</li>
+    <li><strong>Approvals</strong>: anything that changes something shows the exact content first and only happens if you approve. Declining, dismissing the sheet, or leaving the chat all mean no</li>
+    <li>Replies that used a connector say which one ("Searching Gmail")</li>
+    <li>A notice in chats that search your documents explains that connectors are paused, with a one-tap <strong>Use Gmail and Calendar instead</strong></li>
+    <li>New build setting <code>GOOGLE_CLIENT_ID</code> to enable Gmail; documentation in <code>docs/connectors.md</code></li>
+  </ul>
+  <h3>Changed</h3>
+  <ul>
+    <li>Settings &rarr; Network now reads "Only for connectors you turned on" while a Gmail-style connector is on. With connectors off the app makes no network requests</li>
+    <li>Delete all chats and documents also signs out of connected accounts and removes their tokens</li>
+  </ul>
+  <h3>Security</h3>
+  <ul>
+    <li>Email content is treated as untrusted data. There is no tool that sends, deletes or forwards mail, so a malicious email cannot make Applebot send anything</li>
+  </ul>
+
+  <h2>0.2.0</h2>
+  <h3>Added</h3>
+  <ul>
+    <li><strong>New chat from inside a conversation</strong>: a compose button in the chat toolbar starts a brand new, empty conversation (no history, no summary, search reset to all documents)</li>
+    <li><strong>Attach documents to a chat</strong> with the <strong>+</strong> button next to the message box: Files, Photos (on-device OCR), Paste text, or pick from your library</li>
+    <li>Attached documents show as chips above the message box; tap to change the scope, or tap the x to remove one</li>
+  </ul>
+  <h3>Changed</h3>
+  <ul>
+    <li>Attaching documents narrows that chat's search to the attached documents; removing the last one returns to all documents</li>
+    <li>Empty chats that never received a message are no longer saved or listed</li>
+    <li>Documents deleted from the library are dropped from any chat's scope automatically</li>
+  </ul>
+
+  <h2>0.2.0</h2>
+  <ul>
+    <li>Emotional chat: Settings &rarr; Conversation style with Neutral, Warm companion and Supportive coach</li>
+    <li>On-device mood reading that adapts the reply's tone and length</li>
+    <li>Distressed messages skip the document search so Applebot talks instead of answering "not found"</li>
+    <li>Emotion-aware empty chat with conversation starters</li>
+    <li>Kinder message when Apple's safety guardrails decline a request</li>
+  </ul>
+
+  <h2>0.1.0</h2>
+  <p>First working version.</p>
+  <ul>
+    <li>Offline chat with Apple's on-device language model, with streaming answers</li>
+    <li>Saved conversations with search, pinning, and swipe-to-delete</li>
+    <li>Rolling conversation summary so long chats survive the small context window</li>
+    <li>Private document library: PDF, text, Markdown, RTF, and images (on-device OCR), or paste text</li>
+    <li>Hybrid retrieval (semantic vectors plus BM25 keywords) with MMR de-duplication</li>
+    <li>Grounded answers with source citations and a "Why this answer?" sheet</li>
+    <li>Per-chat search scope (all documents or a chosen subset)</li>
+    <li>Optional Face ID / passcode lock, encrypted-at-rest storage, and delete-everything action</li>
+    <li>Availability banner explaining when Apple Intelligence is unavailable</li>
+    <li>Retrieval-quality evaluation (recall@k, MRR) with a CI gate</li>
+  </ul>
+</main>
+<footer>Applebot &middot; everything runs on your device.</footer>
+</body>
+</html>

@@ -1,0 +1,95 @@
+# XcodeGen spec. Generate the project with:  cd ios && xcodegen generate
+# (ios/Applebot.xcodeproj is a build artefact and is git-ignored.)
+name: Applebot
+
+options:
+  bundleIdPrefix: dev.kekaflow
+  deploymentTarget:
+    iOS: "26.0"
+  createIntermediateGroups: true
+  developmentLanguage: en
+
+configFiles:
+  Debug: Signing.xcconfig
+  Release: Signing.xcconfig
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MARKETING_VERSION: "0.3.0"
+    CURRENT_PROJECT_VERSION: "1"
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    DEAD_CODE_STRIPPING: YES
+
+packages:
+  ApplebotKits:
+    path: ..
+
+targets:
+  Applebot:
+    type: application
+    platform: iOS
+    sources:
+      - path: App
+    dependencies:
+      - package: ApplebotKits
+        product: LLMKit
+      - package: ApplebotKits
+        product: RAGKit
+      - package: ApplebotKits
+        product: ConnectorKit
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: Applebot
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        NSFaceIDUsageDescription: Applebot uses Face ID to keep your chats and documents private.
+        NSCalendarsFullAccessUsageDescription: Applebot reads your calendar to answer questions about your schedule, and adds events only after you approve them. Calendar data stays on this iPhone.
+        # Injected from GOOGLE_CLIENT_ID (Local.xcconfig or the environment). Empty disables the Gmail connector.
+        GoogleOAuthClientID: $(GOOGLE_CLIENT_ID)
+        ITSAppUsesNonExemptEncryption: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.kekaflow.applebot
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        GENERATE_INFOPLIST_FILE: NO
+        CODE_SIGN_STYLE: Automatic
+
+  ApplebotUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: ../tests/UITests
+    dependencies:
+      - target: Applebot
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.kekaflow.applebot.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: Applebot
+
+schemes:
+  Applebot:
+    build:
+      targets:
+        Applebot: all
+    test:
+      targets:
+        - ApplebotUITests
+    run:
+      config: Debug
+    archive:
+      config: Release

@@ -1,0 +1,8 @@
+.git
+.build
+.swiftpm
+DerivedData
+ios/App
+ios/Applebot.xcodeproj
+docs
+site
