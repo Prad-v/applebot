@@ -2,6 +2,23 @@
 
 All notable changes to Applebot are documented here. Versions follow semantic versioning.
 
+## 0.8.0
+
+### Added
+- **Reminders connector**: list incomplete to-dos, add reminders, and mark them done (approval for writes). On-device EventKit; feeds the morning brief.
+- Docs updated for Reminders tools and troubleshooting.
+
+## 0.7.0
+
+### Added
+- **Document packs UI**: filter, create packs, and move documents (first-class `pack` field; legacy title prefix still works).
+- **Gentle check-ins**: opt-in relationship continuity prompts from open loops / near-term events.
+- **Retrieval retune**: thumbs up/down on document answers adapt hybrid vector/keyword weights on-device per profile.
+- **Family profiles**: multiple profiles on one iPhone with Face ID to switch; scoped memory, prefs, docs, chats.
+- **Encrypted backup**: export/import `.applebotpack` (AES-GCM + password) for profile, memories, style, automations, optional docs.
+- **Local automations**: Sunday-style recipes offered on unlock; nothing runs until you confirm.
+- Docs: [docs/continuity.md](docs/continuity.md).
+
 ## 0.6.0
 
 ### Added

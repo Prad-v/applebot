@@ -6,6 +6,7 @@ public enum ChatIntent: String, Sendable, Codable, Equatable, CaseIterable {
     case chat
     case documents
     case calendar
+    case reminders
     case email
     case liveData
     case emotional
@@ -16,6 +17,7 @@ public enum ChatIntent: String, Sendable, Codable, Equatable, CaseIterable {
         case .chat: return "Chat"
         case .documents: return "Documents"
         case .calendar: return "Calendar"
+        case .reminders: return "Reminders"
         case .email: return "Email"
         case .liveData: return "Live data"
         case .emotional: return "Emotional"
@@ -29,7 +31,7 @@ public enum ChatIntent: String, Sendable, Codable, Equatable, CaseIterable {
     public var wantsTools: Bool {
         switch self {
         case .rewrite: return false
-        case .chat, .calendar, .email, .liveData, .emotional, .documents: return true
+        case .chat, .calendar, .reminders, .email, .liveData, .emotional, .documents: return true
         }
     }
 
@@ -39,7 +41,7 @@ public enum ChatIntent: String, Sendable, Codable, Equatable, CaseIterable {
     public var wantsDocuments: Bool {
         switch self {
         case .documents: return true
-        case .chat, .calendar, .email, .liveData, .emotional, .rewrite: return false
+        case .chat, .calendar, .reminders, .email, .liveData, .emotional, .rewrite: return false
         }
     }
 }
@@ -67,6 +69,9 @@ public struct IntentRouter: Sendable {
 
         if Self.matches(lowered, anyOf: Self.calendarHints) {
             return .calendar
+        }
+        if Self.matches(lowered, anyOf: Self.remindersHints) {
+            return .reminders
         }
         if Self.matches(lowered, anyOf: Self.emailHints) {
             return .email
@@ -123,6 +128,12 @@ public struct IntentRouter: Sendable {
         "calendar", "schedule", "what's on", "whats on", "what is on", "am i free", "availability",
         "meeting tomorrow", "add an event", "add event", "add lunch", "book a", "my agenda",
         "on my calendar", "today's agenda", "todays agenda",
+    ]
+
+    private static let remindersHints = [
+        "reminder", "reminders", "to-do", "todo", "to do", "task list", "my tasks",
+        "what's due", "whats due", "mark done", "mark complete", "add a reminder",
+        "remind me", "open tasks",
     ]
 
     private static let emailHints = [

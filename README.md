@@ -7,8 +7,9 @@ A private, **fully offline ChatGPT-style assistant for iPhone**. It runs Apple's
 - **Emotional chat**: choose a warm companion or supportive coach style; Applebot reads your mood on-device and adapts its tone.
 - **Long-term memory**: remembers durable facts across chats on-device; review them in Settings.
 - **Personalization**: structured profile + confirmed prefs, ranked/expiring memory, optional morning brief, voice notes into a RAG pack, “write like me” style rewrite, and a local intent router. See [docs/personalization.md](docs/personalization.md).
+- **Continuity**: document packs UI, gentle check-ins, on-device retrieval retune, family profiles with Face ID, encrypted `.applebotpack` backup, and local automations. See [docs/continuity.md](docs/continuity.md).
 - **Voice**: speak to Applebot and hear replies; on-device recognition only (no cloud fallback).
-- **Connectors**: **Gmail**, **Calendar**, **Weather**, **Stocks** and **Web search**. Reads and live lookups run when you ask; drafts and events only after you approve the exact content. See [docs/connectors.md](docs/connectors.md).
+- **Connectors**: **Gmail**, **Calendar**, **Reminders**, **Weather**, **Stocks** and **Web search**. Reads and live lookups run when you ask; drafts, events and reminder writes only after you approve the exact content. See [docs/connectors.md](docs/connectors.md).
 - **External models (optional)**: in Settings, switch chats to **OpenAI** or **Anthropic** with your own API key. Off by default; keys stay in the Keychain. See [docs/external-models.md](docs/external-models.md).
 - **Private by construction**: by default everything stays on the device, encrypted at rest, optional Face ID lock. With connectors and the external model off there are no network requests at all.
 - Requires **iOS 26+** and an Apple Intelligence-capable iPhone (iPhone 15 Pro or newer) with Apple Intelligence turned on (unless you use an external model).
@@ -24,6 +25,7 @@ A private, **fully offline ChatGPT-style assistant for iPhone**. It runs Apple's
 | [docs/emotional-chat.md](docs/emotional-chat.md) | Warm companion / coach styles, mood reading, safety notes |
 | [docs/memory.md](docs/memory.md) | Cross-chat memory: what is stored, controls, privacy |
 | [docs/personalization.md](docs/personalization.md) | Profile, ranked memory, morning brief, voice notes, style card, intent router |
+| [docs/continuity.md](docs/continuity.md) | Packs UI, check-ins, retrieval retune, family profiles, vault, automations |
 | [docs/voice.md](docs/voice.md) | Mic input, spoken replies, hands-free, on-device-only policy |
 | [docs/rag.md](docs/rag.md) | Chunking, embeddings, hybrid retrieval, evaluation |
 | [docs/development.md](docs/development.md) | Building, Docker Compose workflow, tests, CI, environment variables |

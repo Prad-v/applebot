@@ -26,6 +26,16 @@ struct DailyBriefSheet: View {
                         }
                     }
 
+                    if !brief.reminderLines.isEmpty {
+                        Group {
+                            Text("Reminders")
+                                .font(.headline)
+                            ForEach(brief.reminderLines, id: \.self) { line in
+                                Label(line, systemImage: "checklist")
+                            }
+                        }
+                    }
+
                     if !brief.openLoops.isEmpty {
                         Group {
                             Text("Open loops")

@@ -10,8 +10,13 @@ struct ChatsView: View {
     @State private var search = ""
 
     /// Conversations with at least one message; empty drafts are never listed.
+    /// Scoped to the active family profile (legacy nil profile chats stay visible).
     private var visible: [Conversation] {
-        conversations.filter { !$0.messages.isEmpty }
+        let pid = environment.activeProfileID
+        return conversations.filter { conversation in
+            guard !conversation.messages.isEmpty else { return false }
+            return conversation.profileID == nil || conversation.profileID == pid
+        }
     }
 
     private var filtered: [Conversation] {
@@ -66,6 +71,28 @@ struct ChatsView: View {
         }
         .onChange(of: path) { _, _ in discardEmptyDrafts() }
         .onAppear { discardEmptyDrafts() }
+        .onChange(of: environment.pendingChatPrompt) { _, prompt in
+            guard let prompt, !prompt.isEmpty else { return }
+            environment.pendingChatPrompt = nil
+            let conversation = Conversation(
+                useDocuments: !environment.documents.isEmpty,
+                profileID: environment.activeProfileID
+            )
+            modelContext.insert(conversation)
+            path = [conversation]
+            // ChatView sends on appear via a one-shot; stash on conversation title seed.
+            conversation.title = String(prompt.prefix(40))
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                NotificationCenter.default.post(
+                    name: .applebotSendPrompt,
+                    object: nil,
+                    userInfo: ["text": prompt, "conversationID": conversation.id.uuidString]
+                )
+            }
+        }
+        .onChange(of: environment.activeProfileID) { _, _ in
+            path = []
+        }
     }
 
     private var emptyState: some View {
@@ -82,7 +109,10 @@ struct ChatsView: View {
     /// Start a brand new conversation: no history, no summary, search scope reset to all documents.
     /// If a chat screen is open it is replaced, so Back returns to the list rather than the old chat.
     private func startNewChat() {
-        let conversation = Conversation(useDocuments: !environment.documents.isEmpty)
+        let conversation = Conversation(
+            useDocuments: !environment.documents.isEmpty,
+            profileID: environment.activeProfileID
+        )
         modelContext.insert(conversation)
         path = [conversation]
     }
@@ -93,6 +123,10 @@ struct ChatsView: View {
             modelContext.delete(conversation)
         }
     }
+}
+
+extension Notification.Name {
+    static let applebotSendPrompt = Notification.Name("applebotSendPrompt")
 }
 
 private struct ConversationRow: View {

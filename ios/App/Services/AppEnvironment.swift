@@ -89,26 +89,50 @@ final class AppEnvironment {
     /// Compatibility for call sites that still read `.engine` — always the engine chats should use.
     var engine: any LLMEngine { activeEngine() }
 
+    /// Family / multi-profile (Face ID to switch).
+    let family: FamilyProfileStore
     /// Cross-chat memories (Settings → What Applebot remembers).
     let memory = MemoryStore()
     /// Structured profile + confirmed preferences.
-    let profile = PersonalProfileStore()
+    let profile: PersonalProfileStore
     /// Optional “write like me” style card for rewrites.
-    let styleCard = StyleCardStore()
+    let styleCard: StyleCardStore
     /// Opt-in morning / unlock brief.
-    let dailyBrief = DailyBriefController()
+    let dailyBrief: DailyBriefController
+    /// Proactive check-ins for open loops.
+    let checkIns: CheckInController
+    /// Per-profile retrieval weight adaptation.
+    let retrievalTuner: RetrievalTunerStore
+    /// Local automation recipes.
+    let automations: AutomationStore
     /// On-device speech input and spoken replies.
     let voice = VoiceController()
+    /// When set, ChatsView opens a new chat and sends this prompt (check-in / automation).
+    var pendingChatPrompt: String?
 
     /// Combined profile + ranked memory for the chat pipeline.
     var personalContextBlock: String? {
         memory.personalContext(profile: profile.profile)
     }
 
+    /// Active family profile id (for chats / documents scoping).
+    var activeProfileID: UUID { family.activeID }
+
     init(useMockEngine: Bool = ProcessInfo.processInfo.arguments.contains("-UITestMockEngine")) {
         let defaults = UserDefaults.standard
         lockEnabled = defaults.bool(forKey: Keys.lockEnabled)
         isLocked = defaults.bool(forKey: Keys.lockEnabled)
+
+        let familyStore = FamilyProfileStore(defaults: defaults)
+        family = familyStore
+        let pid = familyStore.activeID
+        profile = PersonalProfileStore(defaults: defaults, profileID: pid)
+        styleCard = StyleCardStore(defaults: defaults, profileID: pid)
+        dailyBrief = DailyBriefController(defaults: defaults, profileID: pid)
+        checkIns = CheckInController(defaults: defaults, profileID: pid)
+        retrievalTuner = RetrievalTunerStore(defaults: defaults, profileID: pid)
+        automations = AutomationStore(defaults: defaults, profileID: pid)
+        automations.installTemplatesIfEmpty()
 
         onDeviceEngine = useMockEngine ? Self.makeMockEngine() : AppleFMEngine()
         externalTransport = useMockEngine ? Self.makeMockExternalTransport() : nil
@@ -157,7 +181,29 @@ final class AppEnvironment {
 
     /// Bind SwiftData so memory facts can load. Call once from the root view.
     func attachModelContext(_ context: ModelContext) {
-        memory.attach(context: context, profile: profile)
+        memory.attach(context: context, profile: profile, profileID: family.activeID)
+        Task { await knowledgeBase.setIngestProfileID(family.activeID) }
+    }
+
+    /// Switch family profile (Face ID when required) and reload scoped personalization.
+    @discardableResult
+    func switchProfile(to id: UUID) async -> Bool {
+        let ok = await family.select(id)
+        guard ok else { return false }
+        profile.bind(profileID: id)
+        styleCard.bind(profileID: id)
+        dailyBrief.bind(profileID: id)
+        checkIns.bind(profileID: id)
+        retrievalTuner.bind(profileID: id)
+        automations.bind(profileID: id)
+        automations.installTemplatesIfEmpty()
+        memory.bind(profileID: id)
+        await knowledgeBase.setIngestProfileID(id)
+        await refreshDocuments()
+        await refreshDailyBriefIfNeeded()
+        checkIns.consider(facts: memory.facts)
+        automations.considerDue()
+        return true
     }
 
     func start() async {
@@ -178,6 +224,8 @@ final class AppEnvironment {
             )
         }
         await refreshDailyBriefIfNeeded()
+        checkIns.consider(facts: memory.facts)
+        automations.considerDue()
     }
 
     func unlock() async {
@@ -214,6 +262,8 @@ final class AppEnvironment {
             Task {
                 await connectors.refresh()
                 await refreshDailyBriefIfNeeded()
+                checkIns.consider(facts: memory.facts)
+                automations.considerDue()
             }
         default:
             break
@@ -224,10 +274,12 @@ final class AppEnvironment {
     func refreshDailyBriefIfNeeded() async {
         guard dailyBrief.isEnabled else { return }
         let events = await todayBriefEvents()
+        let reminders = await todayBriefReminders()
         dailyBrief.considerShowing(
             profile: profile.profile,
             facts: memory.facts,
-            events: events
+            events: events,
+            reminderTitles: reminders
         )
     }
 
@@ -237,6 +289,18 @@ final class AppEnvironment {
         let info = await calendar.todayEvents()
         return info.map {
             BriefEvent(title: $0.title, start: $0.start, end: $0.end, isAllDay: $0.isAllDay, location: $0.location)
+        }
+    }
+
+    func todayBriefReminders() async -> [String] {
+        guard let reminders = connectors.registry.connectors.first(where: { $0.id == "reminders" }) as? RemindersConnector
+        else { return [] }
+        let items = await reminders.openReminders(limit: 6)
+        return items.map { item in
+            if let due = item.due {
+                return "\(item.title) (due \(due.formatted(date: .abbreviated, time: .shortened)))"
+            }
+            return item.title
         }
     }
 
@@ -274,8 +338,18 @@ final class AppEnvironment {
     // MARK: Documents
 
     func refreshDocuments() async {
-        documents = await knowledgeBase.documents()
+        let all = await knowledgeBase.documents()
+        documents = DocumentPack.forProfile(all, profileID: family.activeID)
         chunkCount = await knowledgeBase.chunkCount
+    }
+
+    func setDocumentPack(_ document: DocumentRecord, pack: String?) async {
+        _ = try? await knowledgeBase.setPack(documentID: document.id, pack: pack)
+        await refreshDocuments()
+    }
+
+    var documentPacks: [String] {
+        DocumentPack.packs(in: documents)
     }
 
     /// Import files picked from the Files app or Photos. Files are read and indexed; the originals
@@ -305,14 +379,19 @@ final class AppEnvironment {
 
     /// Index pasted text. Returns the library record (new or pre-existing), or nil on failure.
     @discardableResult
-    func importText(title: String, text: String, autoDismiss: Bool = false) async -> DocumentRecord? {
+    func importText(title: String, text: String, pack: String? = nil, autoDismiss: Bool = false) async -> DocumentRecord? {
         var job = ImportJob(name: title)
         imports.append(job)
         var record: DocumentRecord?
         do {
-            let outcome = try await knowledgeBase.ingest(title: title, text: text)
+            let composed = DocumentPack.compose(pack: pack, title: DocumentPack.parse(title).title)
+            let outcome = try await knowledgeBase.ingest(title: composed, text: text)
             job.state = .done(Self.describe(outcome))
             record = Self.record(from: outcome)
+            if let pack, let id = record?.id {
+                _ = try? await knowledgeBase.setPack(documentID: id, pack: pack)
+                record = await knowledgeBase.documents().first(where: { $0.id == id })
+            }
         } catch {
             job.state = .failed(error.localizedDescription)
         }
@@ -321,6 +400,54 @@ final class AppEnvironment {
         await refreshDocuments()
         if autoDismiss { await dismissCompleted([job.id]) }
         return record
+    }
+
+    // MARK: Vault
+
+    func buildVaultPayload(includeDocuments: Bool) async -> PersonalVaultPayload {
+        var vaultDocs: [VaultDocument] = []
+        if includeDocuments {
+            for document in documents {
+                if let text = await knowledgeBase.exportText(documentID: document.id) {
+                    vaultDocs.append(VaultDocument(
+                        id: document.id,
+                        title: document.displayTitle,
+                        pack: DocumentPack.pack(of: document),
+                        text: text
+                    ))
+                }
+            }
+        }
+        return PersonalVaultPayload(
+            profileName: family.active.name,
+            personalProfile: profile.profile,
+            styleCard: styleCard.card,
+            memories: memory.facts,
+            documents: vaultDocs,
+            retrievalWeights: retrievalTuner.weights,
+            automations: automations.recipes
+        )
+    }
+
+    func exportVault(password: String, includeDocuments: Bool) async throws -> Data {
+        let payload = await buildVaultPayload(includeDocuments: includeDocuments)
+        return try PersonalVaultCrypto.export(payload, password: password)
+    }
+
+    func importVault(data: Data, password: String, replaceMemories: Bool) async throws {
+        let payload = try PersonalVaultCrypto.importPayload(from: data, password: password)
+        profile.replace(payload.personalProfile)
+        styleCard.replace(payload.styleCard)
+        retrievalTuner.apply(payload.retrievalWeights)
+        if replaceMemories {
+            memory.replaceAll(payload.memories)
+        } else {
+            memory.ingest(candidates: payload.memories)
+        }
+        automations.replace(payload.automations)
+        for doc in payload.documents {
+            _ = await importText(title: doc.title, text: doc.text, pack: doc.pack, autoDismiss: true)
+        }
     }
 
     /// Structure a voice transcript and ingest it into the Voice notes pack.
@@ -415,6 +542,9 @@ final class AppEnvironment {
         profile.clear()
         styleCard.clear()
         dailyBrief.clearHistory()
+        checkIns.clearHistory()
+        retrievalTuner.reset()
+        automations.clear()
         try? modelContext.save()
         await refreshDocuments()
         await connectors.disconnectAll()
@@ -463,8 +593,10 @@ final class AppEnvironment {
                 id: "demo-1", title: "Design review", start: now.addingTimeInterval(3600),
                 end: now.addingTimeInterval(7200), location: "Room 4"
             )
+            let sampleReminder = ReminderInfo(id: "rem-1", title: "Ship onboarding", due: now.addingTimeInterval(7200))
             return [
                 CalendarConnector(provider: InMemoryCalendarProvider(permission: .notDetermined, events: [sample])),
+                RemindersConnector(provider: InMemoryRemindersProvider(permission: .notDetermined, reminders: [sampleReminder])),
                 GmailConnector(configuration: nil, store: InMemoryTokenStore(), web: web),
                 WeatherConnector(),
                 StocksConnector(),
@@ -477,6 +609,7 @@ final class AppEnvironment {
         let searchKey = Bundle.main.object(forInfoDictionaryKey: "BraveSearchAPIKey") as? String ?? ""
         return [
             CalendarConnector(provider: EventKitCalendarProvider()),
+            RemindersConnector(provider: EventKitRemindersProvider()),
             GmailConnector(
                 configuration: GmailConfiguration(clientID: clientID),
                 store: KeychainTokenStore(), web: web

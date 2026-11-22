@@ -20,12 +20,15 @@ final class Conversation {
     var useDocuments: Bool = true
     /// Document IDs to search. Empty means all documents.
     var scopeIDs: [UUID] = []
+    /// Family profile that owns this chat. Nil = legacy (visible to the default profile).
+    var profileID: UUID?
 
     @Relationship(deleteRule: .cascade, inverse: \ChatMessage.conversation)
     var messages: [ChatMessage] = []
 
-    init(useDocuments: Bool = true) {
+    init(useDocuments: Bool = true, profileID: UUID? = nil) {
         self.useDocuments = useDocuments
+        self.profileID = profileID
     }
 
     /// Messages in chronological order, excluding failed ones.

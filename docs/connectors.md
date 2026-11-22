@@ -5,6 +5,7 @@ Connectors let Applebot use your accounts and look up live public information wh
 | Connector | Reads | Can change (only after you approve) | Network | Setup |
 |---|---|---|---|---|
 | **Calendar** | Events on this iPhone | Add an event | None (on-device) | iOS permission |
+| **Reminders** | Incomplete to-dos on this iPhone | Add a reminder; mark one done | None (on-device) | iOS permission |
 | **Gmail** | Search and read your email | Save a **draft** (never sends) | iPhone ↔ Google only | `GOOGLE_CLIENT_ID` |
 | **Weather** | Current conditions and a short forecast | — | iPhone ↔ Open-Meteo | None |
 | **Stocks** | Latest price for a ticker, index or coin | — | iPhone ↔ Yahoo Finance | None |
@@ -15,13 +16,16 @@ All are **off until you switch them on**, and you can pause one at any time with
 ## Using connectors
 
 1. Open **Settings → Connected services → Connectors**.
-2. For **Calendar** or **Gmail**, tap **Connect…** and follow the prompts. For **Weather**, **Stocks**, or **Web search**, turn on **Use in chats** (Web search only appears when `BRAVE_API_KEY` is set at build time).
+2. For **Calendar**, **Reminders**, or **Gmail**, tap **Connect…** and follow the prompts. For **Weather**, **Stocks**, or **Web search**, turn on **Use in chats** (Web search only appears when `BRAVE_API_KEY` is set at build time).
 3. Leave **Use in chats** on. Switch it off to pause a connector without disconnecting.
 4. Ask in any chat that is **not using documents**:
 
    | You ask | What happens |
    |---|---|
    | "What's on my calendar tomorrow?" | Calendar is read; the answer says "Checking your calendar" while it works |
+   | "What reminders are due today?" | Reminders are listed (incomplete, due today / undated) |
+   | "Remind me to call Sam tomorrow" | An approval sheet shows the reminder; it is added only if you approve |
+   | "Mark the milk reminder done" | After listing, completing needs your approval |
    | "Any emails from Alice this week?" | Gmail is searched (`from:alice newer_than:7d`) and summarised |
    | "Reply to Alice's lunch email saying yes" | Applebot reads it, writes a reply, and **shows you the draft** to approve |
    | "Add lunch with Sam tomorrow at 12:30" | An approval sheet shows the exact event; it is added only if you tap **Add event** |
@@ -115,6 +119,9 @@ The model sees these tools. Names are prefixed with the connector.
 |---|---|---|
 | `calendar_list_events` | `start_date` (YYYY-MM-DD, default today), `days` (1 to 14, default 1) | No |
 | `calendar_create_event` | `title`, `start` (YYYY-MM-DD HH:mm local), `duration_minutes` (default 60), `location` | **Yes** |
+| `reminders_list` | `scope` (`today` / `week` / `all`, default `today`) | No |
+| `reminders_create` | `title`, `due` (optional date), `notes` | **Yes** |
+| `reminders_complete` | `id` (from `reminders_list`) | **Yes** |
 | `gmail_search_emails` | `query` (Gmail search syntax), `limit` (1 to 8, default 5) | No |
 | `gmail_read_email` | `message_id` (from a search) | No |
 | `gmail_create_draft` | `body`, `to`, `subject`, `reply_to_message_id` (replies keep the thread and default the recipient and subject) | **Yes** |
@@ -136,10 +143,10 @@ ChatPipeline ── ToolGuard.wrap(tools)  (call cap, approval, trimming, error 
 ```
 
 - `LLMKit/ToolSpec.swift`: `ToolSpec`, `ToolGuard`, `ApprovalRequest`. Portable and independent of FoundationModels.
-- `ConnectorKit`: `Connector`, `ConnectorRegistry`, `OAuthSession`, `CalendarConnector`, `GmailConnector`, `GmailClient`, `WeatherConnector`, `StocksConnector`, `WebSearchConnector`, `LiveData` (shared HTTP helpers). Portable; EventKit and Keychain code is behind `#if canImport(...)`.
+- `ConnectorKit`: `Connector`, `ConnectorRegistry`, `OAuthSession`, `CalendarConnector`, `RemindersConnector`, `GmailConnector`, `GmailClient`, `WeatherConnector`, `StocksConnector`, `WebSearchConnector`, `LiveData` (shared HTTP helpers). Portable; EventKit and Keychain code is behind `#if canImport(...)`.
 - `AppleFMEngine.DynamicTool` builds each tool's argument schema at runtime (`DynamicGenerationSchema`), so a connector defines tools as data.
 - Tool results consume the 4K-token window, so when tools are active the pipeline reserves 1,200 extra tokens (`toolReserveTokens`) and trims older history accordingly.
-- `usesNetwork` on each connector drives the Settings → Network summary. Calendar is on-device; the others report network use when active.
+- `usesNetwork` on each connector drives the Settings → Network summary. Calendar and Reminders are on-device; the others report network use when active.
 
 ## Adding a connector
 
@@ -163,6 +170,7 @@ Account services that need OAuth can reuse `OAuthSession` with an `OAuthConfig`.
 | "Gmail API has not been used in project … or it is disabled" | Enable the Gmail API for that Google Cloud project, wait a minute, and connect again |
 | "Your session expired. Reconnect in Settings → Connectors." | Testing-mode sign-ins last 7 days, or you revoked access. Connect again |
 | "Calendar access was denied" | Settings app → Applebot → Calendars → Full Access |
+| "Reminders access was denied" | Settings app → Applebot → Reminders → Full Access |
 | "Couldn't reach Open-Meteo / Yahoo Finance / Brave Search" | The phone is offline, or the service is down. Check the connection and try again |
 | "Brave Search rejected the API key" | Wrong or revoked `BRAVE_API_KEY`. Update `.env` / `Local.xcconfig` and rebuild |
 | "Web search has hit its rate limit" | Free-tier quota exhausted. Wait and try again, or upgrade the Brave plan |

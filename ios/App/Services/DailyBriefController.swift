@@ -3,56 +3,73 @@ import Observation
 import LLMKit
 import ConnectorKit
 
-/// Opt-in morning / unlock brief from Calendar + memory. Shown at most once per day.
+/// Opt-in morning / unlock brief from Calendar + memory. Shown at most once per day per profile.
 @MainActor
 @Observable
 final class DailyBriefController {
     var isEnabled: Bool {
-        didSet { defaults.set(isEnabled, forKey: Keys.enabled) }
+        didSet { defaults.set(isEnabled, forKey: key(Keys.enabled)) }
     }
 
     private(set) var pendingBrief: DailyBrief?
     private(set) var lastError: String?
 
     @ObservationIgnored private let defaults: UserDefaults
+    @ObservationIgnored private var profileID: UUID
 
     enum Keys {
         static let enabled = "dailyBriefEnabled"
         static let lastDayKey = "dailyBriefLastDay"
     }
 
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults = .standard, profileID: UUID) {
         self.defaults = defaults
-        isEnabled = defaults.bool(forKey: Keys.enabled)
+        self.profileID = profileID
+        // Inline key — cannot call instance methods before `isEnabled` is set.
+        isEnabled = defaults.bool(forKey: "\(Keys.enabled).\(profileID.uuidString)")
+    }
+
+    func bind(profileID: UUID) {
+        self.profileID = profileID
+        isEnabled = defaults.bool(forKey: Self.storageKey(Keys.enabled, profileID: profileID))
+        pendingBrief = nil
     }
 
     func dismiss() {
         pendingBrief = nil
     }
 
-    /// Call when the app becomes active / unlocked. Builds a brief once per calendar day when enabled.
     func considerShowing(
         profile: PersonalProfile,
         facts: [MemoryFact],
         events: [BriefEvent],
+        reminderTitles: [String] = [],
         now: Date = Date()
     ) {
         guard isEnabled else {
             pendingBrief = nil
             return
         }
-        let key = DailyBriefBuilder.dayKey(now)
-        if defaults.string(forKey: Keys.lastDayKey) == key {
+        let day = DailyBriefBuilder.dayKey(now)
+        if defaults.string(forKey: key(Keys.lastDayKey)) == day {
             return
         }
-        let brief = DailyBriefBuilder.build(profile: profile, facts: facts, events: events, now: now)
-        // Still show an empty-calendar greeting so the feature is discoverable once per day.
+        let brief = DailyBriefBuilder.build(
+            profile: profile, facts: facts, events: events,
+            reminderTitles: reminderTitles, now: now
+        )
         pendingBrief = brief
-        defaults.set(key, forKey: Keys.lastDayKey)
+        defaults.set(day, forKey: key(Keys.lastDayKey))
     }
 
     func clearHistory() {
-        defaults.removeObject(forKey: Keys.lastDayKey)
+        defaults.removeObject(forKey: key(Keys.lastDayKey))
         pendingBrief = nil
+    }
+
+    private func key(_ base: String) -> String { Self.storageKey(base, profileID: profileID) }
+
+    private static func storageKey(_ base: String, profileID: UUID) -> String {
+        "\(base).\(profileID.uuidString)"
     }
 }

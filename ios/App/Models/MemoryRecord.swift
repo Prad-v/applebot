@@ -14,6 +14,7 @@ final class MemoryRecord {
     var confidence: Double = 0.7
     var expiresAt: Date?
     var lastUsedAt: Date?
+    var profileID: UUID?
 
     init(
         text: String,
@@ -21,7 +22,8 @@ final class MemoryRecord {
         pinned: Bool = false,
         confidence: Double = 0.7,
         expiresAt: Date? = nil,
-        lastUsedAt: Date? = nil
+        lastUsedAt: Date? = nil,
+        profileID: UUID? = nil
     ) {
         self.text = text
         self.categoryRaw = category.rawValue
@@ -29,6 +31,7 @@ final class MemoryRecord {
         self.confidence = confidence
         self.expiresAt = expiresAt
         self.lastUsedAt = lastUsedAt
+        self.profileID = profileID
     }
 
     var category: MemoryFact.Category {

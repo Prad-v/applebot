@@ -39,16 +39,22 @@ final class ChatController {
         let tone = environment.chatTone
         environment.voice.stopSpeaking()
         let personalBlock = environment.personalContextBlock
+        let retrievalConfig = environment.retrievalTuner.retrievalConfig
         let basePipeline = ChatPipeline(
             engine: environment.activeEngine(),
             context: ContextManager(windowTokens: environment.contextWindowTokens),
             prompts: PromptBuilder(tone: tone),
             emotionDetector: Self.emotionDetector,
             memories: personalBlock,
-            retriever: environment.knowledgeBase.retriever(limit: environment.retrievalLimit, scope: scope),
+            retriever: environment.knowledgeBase.retriever(
+                limit: environment.retrievalLimit, scope: scope, config: retrievalConfig
+            ),
             styleCard: environment.styleCard.card.isReady ? environment.styleCard.card : nil
         )
         environment.memory.markPromptUsage(from: personalBlock)
+        if conversation.profileID == nil {
+            conversation.profileID = environment.activeProfileID
+        }
         let state = ChatState(summary: conversation.summary, history: history)
         let connectors = environment.connectors
         let approvals = environment.approvals

@@ -141,6 +141,15 @@ struct ChatView: View {
                 send(text)
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .applebotSendPrompt)) { note in
+            guard
+                let text = note.userInfo?["text"] as? String,
+                let idString = note.userInfo?["conversationID"] as? String,
+                let id = UUID(uuidString: idString),
+                id == conversation.id
+            else { return }
+            send(text)
+        }
         .onChange(of: environment.documents) { _, _ in pruneScope() }
         .onChange(of: environment.voice.errorEpoch) { _, _ in
             if environment.voice.errorMessage != nil { showVoiceError = true }
@@ -398,6 +407,8 @@ struct ChatView: View {
 struct MessageBubble: View {
     let message: ChatMessage
     var onInspect: () -> Void
+    @Environment(AppEnvironment.self) private var environment
+    @State private var feedbackGiven = false
 
     private var isUser: Bool { message.role == .user }
 
@@ -438,6 +449,27 @@ struct MessageBubble: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
+        if !message.sources.isEmpty, !feedbackGiven {
+            HStack(spacing: 12) {
+                Text("Helpful?")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Button {
+                    recordFeedback(helpful: true)
+                } label: {
+                    Image(systemName: "hand.thumbsup")
+                }
+                .accessibilityLabel("Helpful")
+                Button {
+                    recordFeedback(helpful: false)
+                } label: {
+                    Image(systemName: "hand.thumbsdown")
+                }
+                .accessibilityLabel("Not helpful")
+            }
+            .font(.caption)
+            .buttonStyle(.borderless)
+        }
         if !message.sources.isEmpty {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
@@ -459,6 +491,17 @@ struct MessageBubble: View {
                 }
             }
         }
+    }
+
+    private func recordFeedback(helpful: Bool) {
+        // Without per-passage ranker tags, treat cited answers as balanced hybrid hits.
+        let hasSources = !message.sources.isEmpty
+        environment.retrievalTuner.recordFeedback(
+            helpful: helpful,
+            citedHadVector: hasSources,
+            citedHadKeyword: hasSources
+        )
+        feedbackGiven = true
     }
 
     /// Inline markdown (bold, italics, code, links) with whitespace preserved.

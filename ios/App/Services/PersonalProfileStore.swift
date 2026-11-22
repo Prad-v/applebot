@@ -2,26 +2,29 @@ import Foundation
 import Observation
 import LLMKit
 
-/// On-device personal profile + pending preference confirmations (UserDefaults JSON).
+/// On-device personal profile + pending preference confirmations (per family profile).
 @MainActor
 @Observable
 final class PersonalProfileStore {
     private(set) var profile: PersonalProfile
 
     @ObservationIgnored private let defaults: UserDefaults
+    @ObservationIgnored private var profileID: UUID
 
     enum Keys {
         static let profile = "personalProfile.v1"
+        static let legacy = "personalProfile.v1"
     }
 
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults = .standard, profileID: UUID) {
         self.defaults = defaults
-        if let data = defaults.data(forKey: Keys.profile),
-           let decoded = try? JSONDecoder().decode(PersonalProfile.self, from: data) {
-            profile = decoded
-        } else {
-            profile = PersonalProfile()
-        }
+        self.profileID = profileID
+        profile = Self.load(defaults: defaults, profileID: profileID)
+    }
+
+    func bind(profileID: UUID) {
+        self.profileID = profileID
+        profile = Self.load(defaults: defaults, profileID: profileID)
     }
 
     func update(_ mutate: (inout PersonalProfile) -> Void) {
@@ -74,17 +77,40 @@ final class PersonalProfileStore {
         }
     }
 
+    func replace(_ profile: PersonalProfile) {
+        self.profile = profile
+        persist()
+    }
+
     func clear() {
         profile = PersonalProfile()
-        defaults.removeObject(forKey: Keys.profile)
+        defaults.removeObject(forKey: storageKey)
     }
 
     var promptBlock: String? { profile.render() }
 
+    private var storageKey: String { "\(Keys.profile).\(profileID.uuidString)" }
+
     private func persist() {
         if let data = try? JSONEncoder().encode(profile) {
-            defaults.set(data, forKey: Keys.profile)
+            defaults.set(data, forKey: storageKey)
         }
+    }
+
+    private static func load(defaults: UserDefaults, profileID: UUID) -> PersonalProfile {
+        let keyed = "\(Keys.profile).\(profileID.uuidString)"
+        if let data = defaults.data(forKey: keyed),
+           let decoded = try? JSONDecoder().decode(PersonalProfile.self, from: data) {
+            return decoded
+        }
+        // Migrate legacy unscoped profile into the first bind.
+        if let data = defaults.data(forKey: Keys.legacy),
+           let decoded = try? JSONDecoder().decode(PersonalProfile.self, from: data) {
+            defaults.set(data, forKey: keyed)
+            defaults.removeObject(forKey: Keys.legacy)
+            return decoded
+        }
+        return PersonalProfile()
     }
 }
 

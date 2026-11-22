@@ -5,6 +5,18 @@ struct DocumentsView: View {
     @Environment(AppEnvironment.self) private var environment
     @State private var showImporter = false
     @State private var showPaste = false
+    @State private var packFilter: String? = nil // nil = all; "" = unfiled
+    @State private var newPackName = ""
+    @State private var showNewPack = false
+    @State private var assigning: DocumentRecord?
+
+    private var filtered: [DocumentRecord] {
+        switch packFilter {
+        case nil: return environment.documents
+        case "": return DocumentPack.filter(environment.documents, pack: "")
+        case let name?: return DocumentPack.filter(environment.documents, pack: name)
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -23,7 +35,24 @@ struct DocumentsView: View {
                 }
 
                 Section {
-                    if environment.documents.isEmpty {
+                    Picker("Pack", selection: $packFilter) {
+                        Text("All").tag(String?.none)
+                        Text(DocumentPack.unfiledLabel).tag(Optional(""))
+                        ForEach(environment.documentPacks, id: \.self) { pack in
+                            Text(pack).tag(Optional(pack))
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .accessibilityIdentifier("pack-filter")
+                    Button("New pack…") { showNewPack = true }
+                } header: {
+                    Text("Packs")
+                } footer: {
+                    Text("Group documents into packs like Work, Health, or Voice notes. Search in a chat can still use all documents or attachments.")
+                }
+
+                Section {
+                    if filtered.isEmpty {
                         ContentUnavailableView {
                             Label("No documents yet", systemImage: "doc.badge.plus")
                         } description: {
@@ -34,22 +63,41 @@ struct DocumentsView: View {
                         }
                         .listRowBackground(Color.clear)
                     }
-                    ForEach(environment.documents) { document in
+                    ForEach(filtered) { document in
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(document.title).font(.headline)
-                            Text("\(document.chunkCount) passages · added \(document.addedAt.formatted(date: .abbreviated, time: .omitted))")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                            Text(document.displayTitle).font(.headline)
+                            HStack(spacing: 6) {
+                                if let pack = DocumentPack.pack(of: document) {
+                                    Text(pack)
+                                        .font(.caption2)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(Color.secondary.opacity(0.15), in: Capsule())
+                                }
+                                Text("\(document.chunkCount) passages · \(document.addedAt.formatted(date: .abbreviated, time: .omitted))")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                         .swipeActions {
                             Button(role: .destructive) {
                                 Task { await environment.remove(document: document) }
                             } label: { Label("Delete", systemImage: "trash") }
                         }
+                        .swipeActions(edge: .leading) {
+                            Button("Pack") { assigning = document }
+                                .tint(.indigo)
+                        }
+                        .contextMenu {
+                            Button("Move to pack…") { assigning = document }
+                            Button("Unfiled") {
+                                Task { await environment.setDocumentPack(document, pack: nil) }
+                            }
+                        }
                     }
                 } header: {
                     if !environment.documents.isEmpty {
-                        Text("\(environment.documents.count) documents · \(environment.chunkCount) passages")
+                        Text("\(filtered.count) of \(environment.documents.count) · \(environment.chunkCount) passages")
                     }
                 } footer: {
                     if !environment.documents.isEmpty {
@@ -77,6 +125,45 @@ struct DocumentsView: View {
                 if case .success(let urls) = result { environment.importFiles(urls) }
             }
             .sheet(isPresented: $showPaste) { PasteTextSheet() }
+            .alert("New pack", isPresented: $showNewPack) {
+                TextField("Pack name", text: $newPackName)
+                Button("Create") {
+                    let name = newPackName.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !name.isEmpty { packFilter = name }
+                    newPackName = ""
+                }
+                Button("Cancel", role: .cancel) { newPackName = "" }
+            } message: {
+                Text("Create a pack, then move documents into it with swipe or long-press.")
+            }
+            .confirmationDialog("Move to pack", isPresented: Binding(
+                get: { assigning != nil },
+                set: { if !$0 { assigning = nil } }
+            ), titleVisibility: .visible) {
+                ForEach(environment.documentPacks, id: \.self) { pack in
+                    Button(pack) {
+                        if let doc = assigning {
+                            Task { await environment.setDocumentPack(doc, pack: pack) }
+                        }
+                        assigning = nil
+                    }
+                }
+                if let pending = packFilter, !pending.isEmpty, !environment.documentPacks.contains(pending) {
+                    Button(pending) {
+                        if let doc = assigning {
+                            Task { await environment.setDocumentPack(doc, pack: pending) }
+                        }
+                        assigning = nil
+                    }
+                }
+                Button("Unfiled") {
+                    if let doc = assigning {
+                        Task { await environment.setDocumentPack(doc, pack: nil) }
+                    }
+                    assigning = nil
+                }
+                Button("Cancel", role: .cancel) { assigning = nil }
+            }
         }
     }
 }

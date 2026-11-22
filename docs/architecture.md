@@ -22,6 +22,7 @@ SwiftUI app (ios/App)
  │   ├─ PersonalProfile           profile + confirmed prefs + PersonalContextBudget (see personalization.md)
  │   ├─ IntentRouter              local chat intent (skip RAG/tools when unneeded)
  │   ├─ StyleCard / VoiceNote / DailyBrief   rewrite SKU · voice→RAG pack · unlock brief
+ │   ├─ CheckIn / Automation / FamilyProfile / PersonalVault / RetrievalTuner
  │   ├─ ToolSpec / ToolGuard      portable tool definition · call cap, approval, output trimming, error capture
  │   └─ ChatPipeline              intent → retrieval → budget → compaction → stream (with tools) → overflow retry
  │

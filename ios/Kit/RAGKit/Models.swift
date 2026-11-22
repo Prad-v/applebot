@@ -20,10 +20,15 @@ public struct DocumentRecord: Sendable, Codable, Equatable, Hashable, Identifiab
     public var contentHash: String
     public var addedAt: Date
     public var chunkCount: Int
+    /// Optional library pack (e.g. "Work", "Voice notes"). Nil = unfiled.
+    public var pack: String?
+    /// Family profile that owns this document. Nil = legacy / shared.
+    public var profileID: UUID?
 
     public init(
         id: UUID = UUID(), title: String, sourceName: String,
-        contentHash: String, addedAt: Date = Date(), chunkCount: Int
+        contentHash: String, addedAt: Date = Date(), chunkCount: Int,
+        pack: String? = nil, profileID: UUID? = nil
     ) {
         self.id = id
         self.title = title
@@ -31,6 +36,21 @@ public struct DocumentRecord: Sendable, Codable, Equatable, Hashable, Identifiab
         self.contentHash = contentHash
         self.addedAt = addedAt
         self.chunkCount = chunkCount
+        // Prefer explicit pack; otherwise parse legacy "Pack / Title" titles.
+        if let pack, !pack.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            self.pack = pack.trimmingCharacters(in: .whitespacesAndNewlines)
+        } else {
+            self.pack = DocumentPack.parse(title).pack
+        }
+        self.profileID = profileID
+    }
+
+    /// Title shown in the UI (strip pack prefix when pack is set).
+    public var displayTitle: String {
+        if pack != nil {
+            return DocumentPack.parse(title).title
+        }
+        return title
     }
 }
 

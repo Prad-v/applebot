@@ -93,6 +93,7 @@ final class PersonalizationTests: XCTestCase {
     func testIntentRouterCalendarAndRewrite() {
         let router = IntentRouter()
         XCTAssertEqual(router.route(question: "What's on my calendar tomorrow?", useDocuments: false), .calendar)
+        XCTAssertEqual(router.route(question: "What reminders are due today?", useDocuments: false), .reminders)
         XCTAssertEqual(router.route(question: "rewrite this: hello team", useDocuments: false), .rewrite)
         XCTAssertEqual(router.route(question: "what's the weather in Paris?", useDocuments: false), .liveData)
         XCTAssertEqual(router.route(question: "any emails from Alice?", useDocuments: false), .email)
@@ -160,11 +161,16 @@ final class PersonalizationTests: XCTestCase {
         let events = [
             BriefEvent(title: "Design review", start: start.addingTimeInterval(3600), end: start.addingTimeInterval(7200))
         ]
-        let brief = DailyBriefBuilder.build(profile: profile, facts: facts, events: events, now: start)
+        let brief = DailyBriefBuilder.build(
+            profile: profile, facts: facts, events: events,
+            reminderTitles: ["Buy milk"], now: start
+        )
         XCTAssertTrue(brief.greeting.contains("Sam"))
         XCTAssertTrue(brief.agendaLines.contains(where: { $0.contains("Design review") }))
+        XCTAssertTrue(brief.reminderLines.contains("Buy milk"))
         XCTAssertTrue(brief.openLoops.contains(where: { $0.contains("sleep") }))
         XCTAssertTrue(brief.markdown.contains("Today"))
+        XCTAssertTrue(brief.markdown.contains("Reminders"))
     }
 
     // MARK: Pipeline integration

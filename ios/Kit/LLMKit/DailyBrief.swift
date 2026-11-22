@@ -17,22 +17,30 @@ public struct BriefEvent: Sendable, Equatable {
     }
 }
 
-/// Portable morning / unlock brief built from calendar + memory + profile. No network.
+/// Portable morning / unlock brief built from calendar + reminders + memory + profile. No network.
 public struct DailyBrief: Sendable, Equatable {
     public var greeting: String
     public var agendaLines: [String]
+    public var reminderLines: [String]
     public var openLoops: [String]
     public var generatedAt: Date
 
-    public init(greeting: String, agendaLines: [String], openLoops: [String], generatedAt: Date = Date()) {
+    public init(
+        greeting: String,
+        agendaLines: [String],
+        reminderLines: [String] = [],
+        openLoops: [String],
+        generatedAt: Date = Date()
+    ) {
         self.greeting = greeting
         self.agendaLines = agendaLines
+        self.reminderLines = reminderLines
         self.openLoops = openLoops
         self.generatedAt = generatedAt
     }
 
     public var isEmpty: Bool {
-        agendaLines.isEmpty && openLoops.isEmpty
+        agendaLines.isEmpty && reminderLines.isEmpty && openLoops.isEmpty
     }
 
     public var markdown: String {
@@ -42,6 +50,11 @@ public struct DailyBrief: Sendable, Equatable {
         } else {
             parts.append("**Today:**")
             parts.append(contentsOf: agendaLines.map { "- \($0)" })
+        }
+        if !reminderLines.isEmpty {
+            parts.append("")
+            parts.append("**Reminders:**")
+            parts.append(contentsOf: reminderLines.prefix(6).map { "- \($0)" })
         }
         if !openLoops.isEmpty {
             parts.append("")
@@ -54,12 +67,14 @@ public struct DailyBrief: Sendable, Equatable {
 
 public enum DailyBriefBuilder {
     public static let maxEvents = 8
+    public static let maxReminders = 6
     public static let maxOpenLoops = 4
 
     public static func build(
         profile: PersonalProfile,
         facts: [MemoryFact],
         events: [BriefEvent],
+        reminderTitles: [String] = [],
         now: Date = Date(),
         calendar: Calendar = .current
     ) -> DailyBrief {
@@ -90,12 +105,24 @@ public enum DailyBriefBuilder {
             return line
         }
 
+        let reminders = reminderTitles
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .prefix(maxReminders)
+            .map { String($0) }
+
         let loops = MemoryBudget.rank(facts, now: now)
             .filter { $0.category == .openLoop || ($0.category == .event && !($0.isExpired(at: now))) }
             .prefix(maxOpenLoops)
             .map(\.text)
 
-        return DailyBrief(greeting: greeting, agendaLines: Array(agenda), openLoops: Array(loops), generatedAt: now)
+        return DailyBrief(
+            greeting: greeting,
+            agendaLines: Array(agenda),
+            reminderLines: Array(reminders),
+            openLoops: Array(loops),
+            generatedAt: now
+        )
     }
 
     /// Calendar day key used to show the brief at most once per day.

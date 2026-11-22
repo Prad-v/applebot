@@ -47,6 +47,41 @@ struct RootView: View {
                 }
             }
         }
+        .sheet(isPresented: Binding(
+            get: { environment.checkIns.pending != nil && environment.dailyBrief.pendingBrief == nil && !environment.isLocked },
+            set: { if !$0 { environment.checkIns.dismiss() } }
+        )) {
+            if let suggestion = environment.checkIns.pending {
+                CheckInSheet(
+                    suggestion: suggestion,
+                    onAccept: { prompt in
+                        environment.checkIns.dismiss()
+                        environment.pendingChatPrompt = prompt
+                    },
+                    onDismiss: { environment.checkIns.dismiss() }
+                )
+            }
+        }
+        .sheet(isPresented: Binding(
+            get: {
+                environment.automations.dueRecipe != nil
+                    && environment.dailyBrief.pendingBrief == nil
+                    && environment.checkIns.pending == nil
+                    && !environment.isLocked
+            },
+            set: { if !$0 { environment.automations.dismissDue() } }
+        )) {
+            if let recipe = environment.automations.dueRecipe {
+                AutomationDueSheet(
+                    recipe: recipe,
+                    onRun: { recipe in
+                        environment.automations.markDueRan()
+                        environment.pendingChatPrompt = recipe.prompt
+                    },
+                    onDismiss: { environment.automations.dismissDue() }
+                )
+            }
+        }
     }
 }
 

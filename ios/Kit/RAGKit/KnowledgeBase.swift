@@ -14,6 +14,8 @@ public actor KnowledgeBase {
     private var chunks: [UUID: Chunk] = [:]
     private var records: [UUID: DocumentRecord] = [:]
     private var isOpen = false
+    /// Active family profile for new ingestions (nil = legacy shared).
+    public var ingestProfileID: UUID?
 
     public init(store: ChunkStore, embedder: Embedder, chunker: Chunker = Chunker(), batchSize: Int = 16) {
         self.store = store
@@ -21,6 +23,10 @@ public actor KnowledgeBase {
         self.chunker = chunker
         self.batchSize = max(1, batchSize)
         self.index = HybridIndex(dimension: embedder.dimension)
+    }
+
+    public func setIngestProfileID(_ id: UUID?) {
+        ingestProfileID = id
     }
 
     // MARK: Lifecycle
@@ -109,7 +115,8 @@ public actor KnowledgeBase {
 
         let record = DocumentRecord(
             id: documentID, title: title, sourceName: sourceName ?? title,
-            contentHash: hash, chunkCount: newChunks.count
+            contentHash: hash, chunkCount: newChunks.count,
+            pack: DocumentPack.parse(title).pack, profileID: ingestProfileID
         )
         try await store.insert(document: record, chunks: stored)
         for item in stored {
@@ -130,6 +137,33 @@ public actor KnowledgeBase {
         index.remove(documentID: documentID)
         chunks = chunks.filter { $0.value.documentID != documentID }
         records[documentID] = nil
+    }
+
+    /// Move a document into a pack (or unfiled) without re-embedding.
+    @discardableResult
+    public func setPack(documentID: UUID, pack: String?) async throws -> DocumentRecord? {
+        try await openIfNeeded()
+        guard var record = records[documentID] else { return nil }
+        let bareTitle = DocumentPack.parse(record.title).title
+        let cleaned = pack?.trimmingCharacters(in: .whitespacesAndNewlines)
+        record.pack = (cleaned?.isEmpty == false) ? cleaned : nil
+        record.title = DocumentPack.compose(pack: record.pack, title: bareTitle)
+        try await store.updateDocument(record)
+        records[documentID] = record
+        return record
+    }
+
+    /// Full document text for vault export (chunks joined in order).
+    public func exportText(documentID: UUID) -> String? {
+        let ordered = chunks.values
+            .filter { $0.documentID == documentID }
+            .sorted { $0.ordinal < $1.ordinal }
+        guard !ordered.isEmpty else { return nil }
+        return ordered.map(\.text).joined(separator: "\n\n")
+    }
+
+    public func documents(forProfile profileID: UUID?) -> [DocumentRecord] {
+        DocumentPack.forProfile(documents(), profileID: profileID)
     }
 
     public func removeAll() async throws {

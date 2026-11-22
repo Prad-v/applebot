@@ -16,6 +16,7 @@ final class MemoryStore {
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private weak var context: ModelContext?
     @ObservationIgnored private weak var profileStore: PersonalProfileStore?
+    @ObservationIgnored private var profileID: UUID?
 
     enum Keys {
         static let enabled = "memoryEnabled"
@@ -31,11 +32,17 @@ final class MemoryStore {
         }
     }
 
-    func attach(context: ModelContext, profile: PersonalProfileStore? = nil) {
+    func attach(context: ModelContext, profile: PersonalProfileStore? = nil, profileID: UUID? = nil) {
         self.context = context
         self.profileStore = profile
+        self.profileID = profileID
         reload()
         purgeExpired()
+    }
+
+    func bind(profileID: UUID?) {
+        self.profileID = profileID
+        reload()
     }
 
     func reload() {
@@ -44,11 +51,14 @@ final class MemoryStore {
             return
         }
         let records = (try? context.fetch(FetchDescriptor<MemoryRecord>())) ?? []
-        facts = MemoryBudget.rank(records.map(\.asFact))
+        let scoped = records.filter { record in
+            guard let profileID else { return true }
+            return record.profileID == nil || record.profileID == profileID
+        }
+        facts = MemoryBudget.rank(scoped.map(\.asFact))
     }
 
     /// Block for `PromptBuilder` / `ChatPipeline`, or nil when disabled / empty.
-    /// Prefer `personalContext(profile:)` when a profile store is available.
     var promptBlock: String? {
         guard isEnabled else { return nil }
         return MemoryBudget.render(facts)
@@ -80,9 +90,39 @@ final class MemoryStore {
 
     func deleteAll() {
         guard let context else { return }
-        try? context.delete(model: MemoryRecord.self)
+        let records = (try? context.fetch(FetchDescriptor<MemoryRecord>())) ?? []
+        for record in records {
+            if let profileID {
+                if record.profileID == nil || record.profileID == profileID {
+                    context.delete(record)
+                }
+            } else {
+                context.delete(record)
+            }
+        }
         try? context.save()
         facts = []
+    }
+
+    func replaceAll(_ facts: [MemoryFact]) {
+        guard let context else { return }
+        deleteAll()
+        for fact in facts {
+            let record = MemoryRecord(
+                text: fact.text,
+                category: fact.category,
+                pinned: fact.pinned,
+                confidence: fact.confidence,
+                expiresAt: fact.expiresAt,
+                lastUsedAt: fact.lastUsedAt,
+                profileID: profileID
+            )
+            record.id = fact.id
+            record.updatedAt = fact.updatedAt
+            context.insert(record)
+        }
+        try? context.save()
+        reload()
     }
 
     /// Drop expired unpinned facts from the store.
@@ -106,13 +146,17 @@ final class MemoryStore {
     func ingest(candidates: [MemoryFact]) {
         guard isEnabled, !candidates.isEmpty, let context else { return }
         let merged = MemoryBudget.merge(existing: facts, adding: candidates)
-        let existing = (try? context.fetch(FetchDescriptor<MemoryRecord>())) ?? []
+        let existing = ((try? context.fetch(FetchDescriptor<MemoryRecord>())) ?? []).filter { record in
+            guard let profileID else { return true }
+            return record.profileID == nil || record.profileID == profileID
+        }
         var byID = Dictionary(uniqueKeysWithValues: existing.map { ($0.id, $0) })
         let mergedIDs = Set(merged.map(\.id))
 
         for fact in merged {
             if let record = byID[fact.id] {
                 record.apply(fact)
+                record.profileID = profileID ?? record.profileID
             } else {
                 let record = MemoryRecord(
                     text: fact.text,
@@ -120,7 +164,8 @@ final class MemoryStore {
                     pinned: fact.pinned,
                     confidence: fact.confidence,
                     expiresAt: fact.expiresAt,
-                    lastUsedAt: fact.lastUsedAt
+                    lastUsedAt: fact.lastUsedAt,
+                    profileID: profileID
                 )
                 record.id = fact.id
                 record.updatedAt = fact.updatedAt
@@ -137,7 +182,6 @@ final class MemoryStore {
     }
 
     /// After a chat turn: try the model, fall back to heuristics.
-    /// Preference facts become pending profile confirmations instead of silent memory.
     func learn(question: String, answer: String, engine: any LLMEngine) async {
         guard isEnabled else { return }
         var candidates: [MemoryFact] = []
@@ -155,7 +199,6 @@ final class MemoryStore {
         if !preferences.isEmpty {
             profileStore?.absorbFacts(preferences)
         }
-        // Identity facts still update the profile even when stored as memory.
         profileStore?.absorbFacts(durable.filter { $0.category == .person || $0.category == .place })
         ingest(candidates: durable)
     }

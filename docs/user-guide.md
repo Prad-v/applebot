@@ -34,6 +34,17 @@ In **Settings → Personal → What Applebot remembers**, leave **Remember acros
 
 See [personalization](personalization.md).
 
+## Packs, family, check-ins, backup, automations
+
+- **Documents → Packs**: filter, create packs, move documents (Work, Health, Voice notes, …).
+- **Family profile**: multiple people on one iPhone; Face ID to switch; separate memories and prefs.
+- **Gentle check-ins**: optional soft prompts about open loops.
+- **Helpful?** thumbs on document answers retune on-device search for your profile.
+- **Backup & restore**: encrypted `.applebotpack` with a password you choose.
+- **Automations**: e.g. every Sunday week plan — offered on unlock, runs only if you confirm.
+
+See [continuity](continuity.md).
+
 ## Voice
 
 Tap the **mic** in a chat to speak. Applebot only uses **on-device** speech recognition; if that is unavailable for your language, the mic stays off. Turn on **Settings → Voice → Speak replies** to hear answers, and **Hands-free conversation** to listen again after each reply. See [voice](voice.md).
@@ -63,10 +74,10 @@ Chats then call that provider over the network. A small banner in the chat remin
 Connectors let Applebot look things up in your accounts and on the web when you ask, and propose actions that you approve first. They are **off until you switch them on**.
 
 1. Open **Settings → Connected services → Connectors**.
-2. Connect **Calendar** or **Gmail**, or turn on **Use in chats** for **Weather**, **Stocks**, or **Web search**.
-3. Ask in a chat, for example "What's on my calendar tomorrow?", "Any emails from Alice this week?", "What's the weather in Paris?", "What's AAPL at?", "What did the Fed decide this week?", or "Add lunch with Sam tomorrow at 12:30".
+2. Connect **Calendar**, **Reminders**, or **Gmail**, or turn on **Use in chats** for **Weather**, **Stocks**, or **Web search**.
+3. Ask in a chat, for example "What's on my calendar tomorrow?", "What reminders are due today?", "Remind me to call Sam tomorrow", "Any emails from Alice this week?", "What's the weather in Paris?", "What's AAPL at?", "What did the Fed decide this week?", or "Add lunch with Sam tomorrow at 12:30".
 
-Reading and live lookups happen straight away. Anything that **changes** something (saving a Gmail draft, adding a calendar event) shows a sheet with the exact content, and only happens if you tap the green button. **Don't allow**, dismissing the sheet, or leaving the chat all mean no. Applebot never sends email: it can only save a draft for you to review and send yourself.
+Reading and live lookups happen straight away. Anything that **changes** something (saving a Gmail draft, adding a calendar event or reminder, completing a reminder) shows a sheet with the exact content, and only happens if you tap the green button. **Don't allow**, dismissing the sheet, or leaving the chat all mean no. Applebot never sends email: it can only save a draft for you to review and send yourself.
 
 Weather and Stocks need no setup. Gmail needs a Google OAuth client ID; Web search needs a Brave Search API key. See [connectors](connectors.md).
 

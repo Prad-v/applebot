@@ -28,7 +28,8 @@ public actor SQLiteChunkStore: ChunkStore {
             CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS documents (
                 id TEXT PRIMARY KEY, title TEXT NOT NULL, source TEXT NOT NULL,
-                hash TEXT NOT NULL UNIQUE, added REAL NOT NULL, chunk_count INTEGER NOT NULL
+                hash TEXT NOT NULL UNIQUE, added REAL NOT NULL, chunk_count INTEGER NOT NULL,
+                pack TEXT, profile_id TEXT
             );
             CREATE TABLE IF NOT EXISTS chunks (
                 id TEXT PRIMARY KEY,
@@ -38,6 +39,9 @@ public actor SQLiteChunkStore: ChunkStore {
             );
             CREATE INDEX IF NOT EXISTS chunks_doc ON chunks(doc_id);
             """)
+        // Lightweight migrations for databases created before pack / profile_id existed.
+        try? Self.execute(handle, "ALTER TABLE documents ADD COLUMN pack TEXT;")
+        try? Self.execute(handle, "ALTER TABLE documents ADD COLUMN profile_id TEXT;")
     }
 
     deinit {
@@ -59,14 +63,22 @@ public actor SQLiteChunkStore: ChunkStore {
     }
 
     public func documents() async throws -> [DocumentRecord] {
-        try query("SELECT id, title, source, hash, added, chunk_count FROM documents ORDER BY added DESC;") { row in
-            DocumentRecord(
+        try query(
+            "SELECT id, title, source, hash, added, chunk_count, pack, profile_id FROM documents ORDER BY added DESC;"
+        ) { row in
+            let pack: String? = sqlite3_column_type(row, 6) == SQLITE_NULL
+                ? nil : String(cString: sqlite3_column_text(row, 6))
+            let profileRaw: String? = sqlite3_column_type(row, 7) == SQLITE_NULL
+                ? nil : String(cString: sqlite3_column_text(row, 7))
+            return DocumentRecord(
                 id: UUID(uuidString: String(cString: sqlite3_column_text(row, 0))) ?? UUID(),
                 title: String(cString: sqlite3_column_text(row, 1)),
                 sourceName: String(cString: sqlite3_column_text(row, 2)),
                 contentHash: String(cString: sqlite3_column_text(row, 3)),
                 addedAt: Date(timeIntervalSince1970: sqlite3_column_double(row, 4)),
-                chunkCount: Int(sqlite3_column_int(row, 5))
+                chunkCount: Int(sqlite3_column_int(row, 5)),
+                pack: (pack?.isEmpty == false) ? pack : nil,
+                profileID: profileRaw.flatMap(UUID.init(uuidString:))
             )
         }
     }
@@ -75,16 +87,32 @@ public actor SQLiteChunkStore: ChunkStore {
         try await documents().first { $0.contentHash == hash }
     }
 
+    public func updateDocument(_ document: DocumentRecord) async throws {
+        try run(
+            "UPDATE documents SET title = ?1, source = ?2, pack = ?3, profile_id = ?4 WHERE id = ?5;"
+        ) {
+            bind($0, 1, document.title)
+            bind($0, 2, document.sourceName)
+            if let pack = document.pack { bind($0, 3, pack) } else { sqlite3_bind_null($0, 3) }
+            if let profileID = document.profileID { bind($0, 4, profileID.uuidString) } else { sqlite3_bind_null($0, 4) }
+            bind($0, 5, document.id.uuidString)
+        }
+    }
+
     public func insert(document: DocumentRecord, chunks: [StoredChunk]) async throws {
         try Self.execute(database, "BEGIN IMMEDIATE;")
         do {
-            try run("INSERT INTO documents(id, title, source, hash, added, chunk_count) VALUES(?1,?2,?3,?4,?5,?6);") {
+            try run(
+                "INSERT INTO documents(id, title, source, hash, added, chunk_count, pack, profile_id) VALUES(?1,?2,?3,?4,?5,?6,?7,?8);"
+            ) {
                 bind($0, 1, document.id.uuidString)
                 bind($0, 2, document.title)
                 bind($0, 3, document.sourceName)
                 bind($0, 4, document.contentHash)
                 sqlite3_bind_double($0, 5, document.addedAt.timeIntervalSince1970)
                 sqlite3_bind_int($0, 6, Int32(document.chunkCount))
+                if let pack = document.pack { bind($0, 7, pack) } else { sqlite3_bind_null($0, 7) }
+                if let profileID = document.profileID { bind($0, 8, profileID.uuidString) } else { sqlite3_bind_null($0, 8) }
             }
             for stored in chunks {
                 try run("INSERT INTO chunks(id, doc_id, ordinal, page, heading, text, vector) VALUES(?1,?2,?3,?4,?5,?6,?7);") {

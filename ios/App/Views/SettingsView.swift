@@ -46,7 +46,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Connected services")
                 } footer: {
-                    Text("Let Applebot use Gmail and your calendar when you ask. It asks before it changes anything.")
+                    Text("Let Applebot use Gmail, Calendar, and Reminders when you ask. It asks before it changes anything.")
                 }
 
                 Section {
@@ -64,6 +64,13 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    NavigationLink {
+                        FamilyProfilesView()
+                    } label: {
+                        LabeledContent("Family profile", value: environment.family.active.name)
+                    }
+                    .accessibilityIdentifier("family-profiles-link")
+
                     NavigationLink {
                         PersonalProfileView()
                     } label: {
@@ -90,6 +97,9 @@ struct SettingsView: View {
                     Toggle("Morning brief on unlock", isOn: Bindable(environment.dailyBrief).isEnabled)
                         .accessibilityIdentifier("daily-brief-enabled")
 
+                    Toggle("Gentle check-ins", isOn: Bindable(environment.checkIns).isEnabled)
+                        .accessibilityIdentifier("check-ins-enabled")
+
                     NavigationLink {
                         StyleCardView()
                     } label: {
@@ -99,10 +109,34 @@ struct SettingsView: View {
                         )
                     }
                     .accessibilityIdentifier("style-card-link")
+
+                    NavigationLink {
+                        AutomationsView()
+                    } label: {
+                        LabeledContent(
+                            "Automations",
+                            value: "\(environment.automations.recipes.filter(\.isEnabled).count) on"
+                        )
+                    }
+
+                    NavigationLink {
+                        PersonalVaultView()
+                    } label: {
+                        Text("Backup & restore")
+                    }
+
+                    LabeledContent(
+                        "Retrieval tune",
+                        value: String(
+                            format: "v %.2f · k %.2f",
+                            environment.retrievalTuner.weights.vectorWeight,
+                            environment.retrievalTuner.weights.keywordWeight
+                        )
+                    )
                 } header: {
                     Text("Personal")
                 } footer: {
-                    Text("Profile, memories, morning brief and style rewrite all stay on this iPhone. Preferences wait for your confirmation. Morning brief uses Calendar when connected.")
+                    Text("Profile, memories, packs, check-ins, automations and backups stay on this iPhone. Thumbs on document answers retune retrieval for this profile.")
                 }
 
                 Section {

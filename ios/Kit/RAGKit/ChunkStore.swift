@@ -11,6 +11,8 @@ public protocol ChunkStore: Sendable {
     func documents() async throws -> [DocumentRecord]
     func document(withHash hash: String) async throws -> DocumentRecord?
     func insert(document: DocumentRecord, chunks: [StoredChunk]) async throws
+    /// Update mutable metadata (title, pack, profile) without re-indexing chunks.
+    func updateDocument(_ document: DocumentRecord) async throws
     func delete(documentID: UUID) async throws
     func deleteAll() async throws
 
@@ -40,6 +42,10 @@ public actor InMemoryChunkStore: ChunkStore {
     public func insert(document: DocumentRecord, chunks newChunks: [StoredChunk]) async throws {
         records[document.id] = document
         for stored in newChunks { chunks[stored.chunk.id] = stored }
+    }
+
+    public func updateDocument(_ document: DocumentRecord) async throws {
+        records[document.id] = document
     }
 
     public func delete(documentID: UUID) async throws {
