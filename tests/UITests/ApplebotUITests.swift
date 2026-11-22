@@ -113,9 +113,51 @@ final class ApplebotUITests: XCTestCase {
     func testPlusMenuOffersAttachOptions() {
         startNewChat()
         app.buttons["attach"].tap()
-        XCTAssertTrue(app.buttons["Files…"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Speak…"].waitForExistence(timeout: 5), "voice entry should be in the + menu")
+        XCTAssertTrue(app.buttons["Files…"].exists)
         XCTAssertTrue(app.buttons["Photos…"].exists)
         XCTAssertTrue(app.buttons["Paste text…"].exists)
+    }
+
+    /// Taps the mic twice (start + stop). Fails if the app process dies (the previous installTap crash).
+    func testMicButtonDoesNotCrash() {
+        startNewChat()
+
+        let mic = app.buttons["mic"]
+        XCTAssertTrue(mic.waitForExistence(timeout: 5), "mic button should be visible next to Send")
+
+        // Dismiss system permission sheets if they appear so the tap is not blocked.
+        addUIInterruptionMonitor(withDescription: "voice permissions") { alert in
+            let allow = alert.buttons["Allow"].exists ? alert.buttons["Allow"]
+                : (alert.buttons["OK"].exists ? alert.buttons["OK"] : alert.buttons.firstMatch)
+            if allow.exists { allow.tap(); return true }
+            return false
+        }
+
+        mic.tap()
+        // Nudge the run loop so interruption monitors can fire.
+        app.tap()
+
+        // Give recording a moment; the old bug aborted immediately on tap.
+        RunLoop.current.run(until: Date().addingTimeInterval(2))
+
+        XCTAssertTrue(app.textFields["message-field"].exists, "app must still be alive after starting the mic")
+        XCTAssertTrue(app.buttons["mic"].exists, "mic control must still be in the hierarchy")
+
+        // Second tap stops recording / transcribes (may show an alert if nothing was heard).
+        if app.buttons["mic"].exists {
+            app.buttons["mic"].tap()
+            RunLoop.current.run(until: Date().addingTimeInterval(2))
+        }
+
+        // Dismiss our in-app Voice alert if present.
+        if app.alerts["Voice"].waitForExistence(timeout: 3) {
+            app.alerts["Voice"].buttons["OK"].tap()
+        }
+
+        XCTAssertTrue(app.textFields["message-field"].waitForExistence(timeout: 5),
+                      "app must still be alive after stopping the mic")
+        XCTAssertEqual(app.state, .runningForeground, "Applebot should not have crashed")
     }
 
     func testConnectorsScreenListsServicesAndConnectsCalendar() {

@@ -6,6 +6,7 @@ A private, **fully offline ChatGPT-style assistant for iPhone**. It runs Apple's
 - **Chat with my documents**: import PDFs, text, Markdown, and photos (OCR). Answers cite their sources, and "Why this answer?" shows exactly what the model was given.
 - **Emotional chat**: choose a warm companion or supportive coach style; Applebot reads your mood on-device and adapts its tone.
 - **Long-term memory**: remembers durable facts across chats on-device; review them in Settings.
+- **Personalization**: structured profile + confirmed prefs, ranked/expiring memory, optional morning brief, voice notes into a RAG pack, “write like me” style rewrite, and a local intent router. See [docs/personalization.md](docs/personalization.md).
 - **Voice**: speak to Applebot and hear replies; on-device recognition only (no cloud fallback).
 - **Connectors**: **Gmail**, **Calendar**, **Weather**, **Stocks** and **Web search**. Reads and live lookups run when you ask; drafts and events only after you approve the exact content. See [docs/connectors.md](docs/connectors.md).
 - **External models (optional)**: in Settings, switch chats to **OpenAI** or **Anthropic** with your own API key. Off by default; keys stay in the Keychain. See [docs/external-models.md](docs/external-models.md).
@@ -22,6 +23,7 @@ A private, **fully offline ChatGPT-style assistant for iPhone**. It runs Apple's
 | [docs/external-models.md](docs/external-models.md) | Optional OpenAI / Anthropic chat backends: keys, privacy, OpenAI-compatible base URLs |
 | [docs/emotional-chat.md](docs/emotional-chat.md) | Warm companion / coach styles, mood reading, safety notes |
 | [docs/memory.md](docs/memory.md) | Cross-chat memory: what is stored, controls, privacy |
+| [docs/personalization.md](docs/personalization.md) | Profile, ranked memory, morning brief, voice notes, style card, intent router |
 | [docs/voice.md](docs/voice.md) | Mic input, spoken replies, hands-free, on-device-only policy |
 | [docs/rag.md](docs/rag.md) | Chunking, embeddings, hybrid retrieval, evaluation |
 | [docs/development.md](docs/development.md) | Building, Docker Compose workflow, tests, CI, environment variables |

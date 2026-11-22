@@ -38,14 +38,17 @@ final class ChatController {
         let scope = DocumentScope.searchScope(conversation.scopeIDs, existing: existing)
         let tone = environment.chatTone
         environment.voice.stopSpeaking()
+        let personalBlock = environment.personalContextBlock
         let basePipeline = ChatPipeline(
             engine: environment.activeEngine(),
             context: ContextManager(windowTokens: environment.contextWindowTokens),
             prompts: PromptBuilder(tone: tone),
             emotionDetector: Self.emotionDetector,
-            memories: environment.memory.promptBlock,
-            retriever: environment.knowledgeBase.retriever(limit: environment.retrievalLimit, scope: scope)
+            memories: personalBlock,
+            retriever: environment.knowledgeBase.retriever(limit: environment.retrievalLimit, scope: scope),
+            styleCard: environment.styleCard.card.isReady ? environment.styleCard.card : nil
         )
+        environment.memory.markPromptUsage(from: personalBlock)
         let state = ChatState(summary: conversation.summary, history: history)
         let connectors = environment.connectors
         let approvals = environment.approvals

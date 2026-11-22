@@ -30,6 +30,8 @@ public struct ChatResult: Sendable, Equatable {
     public var emotion: EmotionReading?
     /// Companion conversational cue (e.g. the user asked how the bot is feeling).
     public var cue: CompanionCue
+    /// Local intent classification used to skip RAG / tools when unneeded.
+    public var intent: ChatIntent
 
     public var citedSnippets: [ContextSnippet] {
         citedIndices.compactMap { $0 >= 1 && $0 <= snippets.count ? snippets[$0 - 1] : nil }
@@ -58,7 +60,7 @@ public struct ChatPipeline: Sendable {
     public var prompts: PromptBuilder
     /// Reads the user's mood for emotion-aware tones (`prompts.tone`).
     public var emotionDetector: (any EmotionDetecting)?
-    /// Cross-chat memory block already rendered by `MemoryBudget.render` (optional).
+    /// Cross-chat profile + memory block from `PersonalContextBudget.render` (optional).
     public var memories: String?
     public var retriever: SnippetRetriever?
     /// Connector tools the model may call. Only offered when documents are not grounding the answer
@@ -75,6 +77,10 @@ public struct ChatPipeline: Sendable {
     /// Escalating budget pressure applied on each overflow retry.
     public var retryPressures: [Double]
     public var maxSummaryTokens: Int
+    /// Local intent classifier (no model call).
+    public var intentRouter: IntentRouter
+    /// Optional style card for on-device “write like me” rewrites.
+    public var styleCard: StyleCard?
 
     public init(
         engine: any LLMEngine,
@@ -90,7 +96,9 @@ public struct ChatPipeline: Sendable {
         maxToolOutputTokens: Int = 500,
         maxToolCalls: Int = 6,
         retryPressures: [Double] = [1.0, 1.6, 2.5],
-        maxSummaryTokens: Int = 220
+        maxSummaryTokens: Int = 220,
+        intentRouter: IntentRouter = IntentRouter(),
+        styleCard: StyleCard? = nil
     ) {
         self.engine = engine
         self.context = context
@@ -106,6 +114,8 @@ public struct ChatPipeline: Sendable {
         self.maxToolCalls = maxToolCalls
         self.retryPressures = retryPressures.isEmpty ? [1.0] : retryPressures
         self.maxSummaryTokens = maxSummaryTokens
+        self.intentRouter = intentRouter
+        self.styleCard = styleCard
     }
 
     public func send(
@@ -146,7 +156,21 @@ public struct ChatPipeline: Sendable {
         let emotionAware = prompts.tone.isEmotionAware
         let emotion = emotionAware ? emotionDetector?.read(question) : nil
         let cue = emotionAware ? CompanionCue.detect(in: question) : .none
-        let skipDocuments = emotion?.needsSupport == true || cue == .askingAboutBot
+
+        let intent = intentRouter.route(
+            question: question, useDocuments: useDocuments, emotion: emotion, cue: cue
+        )
+
+        // Fast path: style-card rewrite skips RAG, tools and history compaction.
+        if intent == .rewrite, let card = styleCard, card.isReady {
+            return try await runRewrite(
+                question: question, state: state, emotion: emotion, cue: cue, emit: emit
+            )
+        }
+
+        let skipDocuments = !intent.wantsDocuments
+            || emotion?.needsSupport == true
+            || cue == .askingAboutBot
 
         // Retrieval (optional).
         var candidates: [ContextSnippet] = []
@@ -158,9 +182,10 @@ public struct ChatPipeline: Sendable {
             emit(.retrieved(candidates))
         }
 
-        // Tools: only when not grounded in documents and the engine supports them.
+        // Tools: when not grounded in documents, intent allows them, and the engine supports them.
+        // Casual chat still gets tools (classification cannot cover every "add lunch tomorrow").
         let toolEngine = engine as? any ToolCallingEngine
-        let useTools = !grounded && !tools.isEmpty && toolEngine != nil
+        let useTools = !grounded && intent.wantsTools && !tools.isEmpty && toolEngine != nil
         let toolNote = useTools ? PromptBuilder.toolInstructions(now: clock()) : nil
         let temperature = prompts.tone.samplingTemperature
         var window = context
@@ -225,7 +250,7 @@ public struct ChatPipeline: Sendable {
                 return makeResult(
                     answer: answer, question: question, snippets: fit.snippets, grounded: grounded,
                     searchQuery: searchQuery, summary: summary, history: history, compactions: compactions,
-                    emotion: emotion, cue: cue
+                    emotion: emotion, cue: cue, intent: intent
                 )
             } catch LLMEngineError.contextOverflow {
                 lastError = LLMEngineError.contextOverflow
@@ -235,10 +260,33 @@ public struct ChatPipeline: Sendable {
         throw lastError
     }
 
+    /// Style-card rewrite: single short generation, no retrieval or tools.
+    private func runRewrite(
+        question: String,
+        state: ChatState,
+        emotion: EmotionReading?,
+        cue: CompanionCue,
+        emit: @escaping @Sendable (ChatEvent) -> Void
+    ) async throws -> ChatResult {
+        let card = styleCard ?? StyleCard(traits: "Clear and natural", isEnabled: true)
+        let request = card.rewriteRequest(draft: question)
+        var answer = ""
+        for try await snapshot in engine.stream(request) {
+            try Task.checkCancellation()
+            answer = snapshot
+            emit(.partial(snapshot))
+        }
+        return makeResult(
+            answer: answer, question: question, snippets: [], grounded: false,
+            searchQuery: nil, summary: state.summary, history: state.history, compactions: 0,
+            emotion: emotion, cue: cue, intent: .rewrite
+        )
+    }
+
     private func makeResult(
         answer: String, question: String, snippets: [ContextSnippet], grounded: Bool,
         searchQuery: String?, summary: String?, history: [Turn], compactions: Int,
-        emotion: EmotionReading?, cue: CompanionCue
+        emotion: EmotionReading?, cue: CompanionCue, intent: ChatIntent
     ) -> ChatResult {
         let trimmed = answer.trimmingCharacters(in: .whitespacesAndNewlines)
         let cited = PromptBuilder.citations(in: trimmed).filter { $0 >= 1 && $0 <= snippets.count }
@@ -254,7 +302,8 @@ public struct ChatPipeline: Sendable {
             state: ChatState(summary: summary, history: newHistory),
             compactions: compactions,
             emotion: emotion,
-            cue: cue
+            cue: cue,
+            intent: intent
         )
     }
 

@@ -37,6 +37,16 @@ struct RootView: View {
                 environment.approvals.resolve(approved, requestID: request.id)
             }
         }
+        .sheet(isPresented: Binding(
+            get: { environment.dailyBrief.pendingBrief != nil && !environment.isLocked },
+            set: { if !$0 { environment.dailyBrief.dismiss() } }
+        )) {
+            if let brief = environment.dailyBrief.pendingBrief {
+                DailyBriefSheet(brief: brief) {
+                    environment.dailyBrief.dismiss()
+                }
+            }
+        }
     }
 }
 

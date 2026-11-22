@@ -23,7 +23,16 @@ Long conversations are handled automatically: older messages are condensed into 
 
 ## Memory across chats
 
-In **Settings → Memory → What Applebot remembers**, leave **Remember across chats** on to keep short facts (names, preferences, upcoming events) on this iPhone and use them in every chat. You can pin or delete each fact. See [memory](memory.md).
+In **Settings → Personal → What Applebot remembers**, leave **Remember across chats** on to keep short facts (names, upcoming events, places, projects) on this iPhone and use them in every chat. You can pin or delete each fact. Events and open loops expire unless pinned. See [memory](memory.md).
+
+## Personal profile, brief, voice notes, rewrite
+
+- **Your profile** (Settings → Personal): name, city, roles, reply style, boundaries. Preferences learned in chat wait for you to confirm.
+- **Morning brief on unlock**: optional once-a-day sheet from Calendar + open loops.
+- **Voice note…** in a chat’s **+** menu: speak, review a structured note, save into the **Voice notes** document pack.
+- **Write like me**: add writing samples in Settings, then send `rewrite this: …` in a chat.
+
+See [personalization](personalization.md).
 
 ## Voice
 

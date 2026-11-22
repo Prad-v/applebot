@@ -20,6 +20,9 @@ struct ChatView: View {
     @State private var showPhotos = false
     @State private var showPaste = false
     @State private var photoItems: [PhotosPickerItem] = []
+    @State private var showVoiceError = false
+    @State private var showVoiceNote = false
+    @State private var voiceNoteTranscript = ""
     @FocusState private var inputFocused: Bool
 
     private var messages: [ChatMessage] {
@@ -111,6 +114,11 @@ struct ChatView: View {
         .sheet(isPresented: $showPaste) {
             PasteTextSheet(onAdded: { attach([$0]) }, autoDismiss: true)
         }
+        .sheet(isPresented: $showVoiceNote) {
+            VoiceNoteSheet(transcript: voiceNoteTranscript) { record in
+                attach([record])
+            }
+        }
         .fileImporter(
             isPresented: $showImporter,
             allowedContentTypes: DocumentTypes.allowed,
@@ -134,6 +142,18 @@ struct ChatView: View {
             }
         }
         .onChange(of: environment.documents) { _, _ in pruneScope() }
+        .onChange(of: environment.voice.errorEpoch) { _, _ in
+            if environment.voice.errorMessage != nil { showVoiceError = true }
+        }
+        .alert("Voice", isPresented: $showVoiceError) {
+            if environment.voice.speechAuthDescription == "Denied"
+                || environment.voice.micAuthDescription == "Denied" {
+                Button("Open Settings") { environment.voice.openSystemSettings() }
+            }
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(environment.voice.errorMessage ?? "Something went wrong with the microphone.")
+        }
         .onDisappear {
             controller.stop(environment: environment)
             environment.voice.onUtterance = nil
@@ -174,7 +194,7 @@ struct ChatView: View {
     }
 
     private var composer: some View {
-        HStack(alignment: .bottom, spacing: 8) {
+        HStack(alignment: .bottom, spacing: 10) {
             attachMenu
 
             TextField("Message", text: $draft, axis: .vertical)
@@ -182,50 +202,84 @@ struct ChatView: View {
                 .focused($inputFocused)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 20))
                 .accessibilityIdentifier("message-field")
                 .onSubmit { send(draft) }
 
-            micButton
-
-            if controller.isResponding || environment.voice.phase == .speaking {
-                Button {
-                    controller.stop(environment: environment)
-                } label: {
-                    Image(systemName: "stop.circle.fill").font(.system(size: 32))
-                }
-                .accessibilityLabel("Stop")
-            } else {
-                Button {
-                    send(draft)
-                } label: {
-                    Image(systemName: "arrow.up.circle.fill").font(.system(size: 32))
-                }
-                .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !environment.availability.isAvailable)
-                .accessibilityLabel("Send")
-                .accessibilityIdentifier("send")
+            // Fixed trailing controls so the TextField cannot squeeze the mic away.
+            HStack(spacing: 10) {
+                micButton
+                sendOrStopButton
             }
+            .fixedSize(horizontal: true, vertical: false)
         }
         .padding(.horizontal)
         .padding(.vertical, 8)
+    }
+
+    @ViewBuilder
+    private var sendOrStopButton: some View {
+        if controller.isResponding || environment.voice.phase == .speaking {
+            Button {
+                controller.stop(environment: environment)
+            } label: {
+                Image(systemName: "stop.circle.fill").font(.system(size: 32))
+            }
+            .accessibilityLabel("Stop")
+        } else {
+            Button {
+                send(draft)
+            } label: {
+                Image(systemName: "arrow.up.circle.fill").font(.system(size: 32))
+            }
+            .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !environment.availability.isAvailable)
+            .accessibilityLabel("Send")
+            .accessibilityIdentifier("send")
+        }
     }
 
     private var micButton: some View {
         Button {
             environment.voice.toggleListening()
         } label: {
-            Image(systemName: environment.voice.phase == .listening ? "mic.circle.fill" : "mic.circle")
-                .font(.system(size: 32))
-                .foregroundStyle(environment.voice.phase == .listening ? Color.accentColor : Color.secondary)
+            Image(systemName: environment.voice.phase == .listening ? "mic.fill" : "mic.circle.fill")
+                .font(.system(size: 30))
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(environment.voice.phase == .listening ? Color.red : Color.accentColor)
+                .frame(width: 36, height: 36)
         }
+        .buttonStyle(.plain)
         .accessibilityLabel(environment.voice.phase == .listening ? "Stop listening" : "Speak")
         .accessibilityIdentifier("mic")
         .disabled(controller.isResponding)
     }
 
-    /// "+" menu: bring documents into this conversation.
+    /// "+" menu: documents and voice.
     private var attachMenu: some View {
         Menu {
+            Button {
+                environment.voice.toggleListening()
+            } label: {
+                Label(
+                    environment.voice.phase == .listening ? "Stop listening" : "Speak…",
+                    systemImage: "mic.fill"
+                )
+            }
+            .disabled(controller.isResponding)
+
+            Toggle("Speak replies", isOn: Bindable(environment.voice).autoSpeak)
+            Toggle("Hands-free", isOn: Bindable(environment.voice).handsFree)
+                .disabled(!environment.voice.autoSpeak)
+
+            Button {
+                startVoiceNote()
+            } label: {
+                Label("Voice note…", systemImage: "waveform.badge.mic")
+            }
+            .disabled(controller.isResponding)
+
+            Divider()
             Button { showImporter = true } label: { Label("Files…", systemImage: "folder") }
             Button { showPhotos = true } label: { Label("Photos…", systemImage: "photo.on.rectangle") }
             Button { showPaste = true } label: { Label("Paste text…", systemImage: "doc.on.clipboard") }
@@ -238,7 +292,7 @@ struct ChatView: View {
                 .font(.system(size: 32))
                 .foregroundStyle(.secondary)
         }
-        .accessibilityLabel("Attach documents")
+        .accessibilityLabel("Attach and voice")
         .accessibilityIdentifier("attach")
     }
 
@@ -321,6 +375,21 @@ struct ChatView: View {
         draft = ""
         environment.voice.stopListening(submit: false)
         controller.send(trimmed, conversation: conversation, environment: environment, context: modelContext)
+    }
+
+    /// Capture speech into a structured note in the Voice notes pack (not a chat send).
+    private func startVoiceNote() {
+        environment.voice.stopSpeaking()
+        environment.voice.onUtterance = { text in
+            voiceNoteTranscript = text
+            showVoiceNote = true
+            // Restore normal chat mic behaviour after the note capture.
+            environment.voice.onUtterance = { spoken in
+                draft = spoken
+                send(spoken)
+            }
+        }
+        environment.voice.startListening()
     }
 }
 

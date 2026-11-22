@@ -83,6 +83,7 @@ final class AppEnvironment {
         static let memoryEnabled = MemoryStore.Keys.enabled
         static let voiceAutoSpeak = VoiceController.Keys.autoSpeak
         static let voiceHandsFree = VoiceController.Keys.handsFree
+        static let dailyBriefEnabled = DailyBriefController.Keys.enabled
     }
 
     /// Compatibility for call sites that still read `.engine` — always the engine chats should use.
@@ -90,8 +91,19 @@ final class AppEnvironment {
 
     /// Cross-chat memories (Settings → What Applebot remembers).
     let memory = MemoryStore()
+    /// Structured profile + confirmed preferences.
+    let profile = PersonalProfileStore()
+    /// Optional “write like me” style card for rewrites.
+    let styleCard = StyleCardStore()
+    /// Opt-in morning / unlock brief.
+    let dailyBrief = DailyBriefController()
     /// On-device speech input and spoken replies.
     let voice = VoiceController()
+
+    /// Combined profile + ranked memory for the chat pipeline.
+    var personalContextBlock: String? {
+        memory.personalContext(profile: profile.profile)
+    }
 
     init(useMockEngine: Bool = ProcessInfo.processInfo.arguments.contains("-UITestMockEngine")) {
         let defaults = UserDefaults.standard
@@ -145,7 +157,7 @@ final class AppEnvironment {
 
     /// Bind SwiftData so memory facts can load. Call once from the root view.
     func attachModelContext(_ context: ModelContext) {
-        memory.attach(context: context)
+        memory.attach(context: context, profile: profile)
     }
 
     func start() async {
@@ -161,9 +173,32 @@ final class AppEnvironment {
         if !isUsingExternalModel, let engine = onDeviceEngine as? AppleFMEngine {
             engine.prewarm(
                 instructions: PromptBuilder(tone: chatTone).instructions(
-                    summary: nil, grounded: false, memories: memory.promptBlock
+                    summary: nil, grounded: false, memories: personalContextBlock
                 )
             )
+        }
+        await refreshDailyBriefIfNeeded()
+    }
+
+    func unlock() async {
+        let context = LAContext()
+        var error: NSError?
+        guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) else {
+            // No passcode or biometrics configured: nothing to protect with, so do not trap the user.
+            isLocked = false
+            await refreshDailyBriefIfNeeded()
+            return
+        }
+        do {
+            let ok = try await context.evaluatePolicy(
+                .deviceOwnerAuthentication, localizedReason: "Unlock your private chats and documents"
+            )
+            if ok {
+                isLocked = false
+                await refreshDailyBriefIfNeeded()
+            }
+        } catch {
+            // Cancelled or failed; stay locked.
         }
     }
 
@@ -176,9 +211,32 @@ final class AppEnvironment {
             refreshAvailability()
             voice.refreshOnDeviceAvailability()
             // Permissions can change in the Settings app while Applebot is in the background.
-            Task { await connectors.refresh() }
+            Task {
+                await connectors.refresh()
+                await refreshDailyBriefIfNeeded()
+            }
         default:
             break
+        }
+    }
+
+    /// Build today's brief once per day when the feature is on.
+    func refreshDailyBriefIfNeeded() async {
+        guard dailyBrief.isEnabled else { return }
+        let events = await todayBriefEvents()
+        dailyBrief.considerShowing(
+            profile: profile.profile,
+            facts: memory.facts,
+            events: events
+        )
+    }
+
+    func todayBriefEvents() async -> [BriefEvent] {
+        guard let calendar = connectors.registry.connectors.first(where: { $0.id == "calendar" }) as? CalendarConnector
+        else { return [] }
+        let info = await calendar.todayEvents()
+        return info.map {
+            BriefEvent(title: $0.title, start: $0.start, end: $0.end, isAllDay: $0.isAllDay, location: $0.location)
         }
     }
 
@@ -211,26 +269,6 @@ final class AppEnvironment {
     func saveExternalConfig(_ config: ExternalModelConfig) throws {
         try externalStore.save(config)
         refreshAvailability()
-    }
-
-    // MARK: Lock
-
-    func unlock() async {
-        let context = LAContext()
-        var error: NSError?
-        guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) else {
-            // No passcode or biometrics configured: nothing to protect with, so do not trap the user.
-            isLocked = false
-            return
-        }
-        do {
-            let ok = try await context.evaluatePolicy(
-                .deviceOwnerAuthentication, localizedReason: "Unlock your private chats and documents"
-            )
-            if ok { isLocked = false }
-        } catch {
-            // Cancelled or failed; stay locked.
-        }
     }
 
     // MARK: Documents
@@ -283,6 +321,23 @@ final class AppEnvironment {
         await refreshDocuments()
         if autoDismiss { await dismissCompleted([job.id]) }
         return record
+    }
+
+    /// Structure a voice transcript and ingest it into the Voice notes pack.
+    @discardableResult
+    func importVoiceNote(
+        transcript: String,
+        polishWithModel: Bool = true,
+        autoDismiss: Bool = true
+    ) async -> DocumentRecord? {
+        var note = VoiceNoteStructurer.structure(transcript)
+        if polishWithModel {
+            let request = VoiceNoteStructurer().polishRequest(transcript: transcript)
+            if let raw = try? await activeEngine().respond(request) {
+                note = VoiceNoteStructurer.parsePolished(raw, fallback: transcript)
+            }
+        }
+        return await importText(title: note.documentTitle, text: note.documentText, autoDismiss: autoDismiss)
     }
 
     private func runImport(url: URL, jobID: UUID) async -> DocumentRecord? {
@@ -357,6 +412,9 @@ final class AppEnvironment {
         try? await knowledgeBase.removeAll()
         try? modelContext.delete(model: Conversation.self)
         memory.deleteAll()
+        profile.clear()
+        styleCard.clear()
+        dailyBrief.clearHistory()
         try? modelContext.save()
         await refreshDocuments()
         await connectors.disconnectAll()

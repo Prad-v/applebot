@@ -184,7 +184,7 @@ final class ChatPipelineToolTests: XCTestCase {
             retriever: { _ in [ContextSnippet(id: "1", title: "Doc", text: "text")] },
             tools: [calendarTool()]
         )
-        _ = try await collect(pipeline.send(question: "q", state: ChatState(), useDocuments: true))
+        _ = try await collect(pipeline.send(question: "How do I reset it according to my documents?", state: ChatState(), useDocuments: true))
         XCTAssertEqual(engine.offeredToolNames, [[]])
         XCTAssertFalse(engine.requests[0].instructions.contains("Current date and time"))
     }

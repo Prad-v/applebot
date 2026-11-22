@@ -59,7 +59,7 @@ public struct PromptBuilder: Sendable {
     /// System instructions. Includes the rolling summary of older turns when present.
     /// `toolNote` is `toolInstructions(now:)` when connector tools are active.
     /// `emotion` and `cue` adapt the reply for emotion-aware tones only.
-    /// `memories` is the cross-chat "Things you remember" block from `MemoryBudget.render`.
+    /// `memories` is the profile + memory block from `PersonalContextBudget.render`.
     public func instructions(
         summary: String?,
         grounded: Bool,

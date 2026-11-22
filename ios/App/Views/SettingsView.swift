@@ -65,6 +65,17 @@ struct SettingsView: View {
 
                 Section {
                     NavigationLink {
+                        PersonalProfileView()
+                    } label: {
+                        LabeledContent(
+                            "Your profile",
+                            value: environment.profile.profile.displayName
+                                ?? (environment.profile.profile.pendingPrefs.isEmpty ? "Set up" : "\(environment.profile.profile.pendingPrefs.count) to confirm")
+                        )
+                    }
+                    .accessibilityIdentifier("profile-link")
+
+                    NavigationLink {
                         MemoriesView()
                     } label: {
                         LabeledContent(
@@ -75,10 +86,23 @@ struct SettingsView: View {
                         )
                     }
                     .accessibilityIdentifier("memories-link")
+
+                    Toggle("Morning brief on unlock", isOn: Bindable(environment.dailyBrief).isEnabled)
+                        .accessibilityIdentifier("daily-brief-enabled")
+
+                    NavigationLink {
+                        StyleCardView()
+                    } label: {
+                        LabeledContent(
+                            "Write like me",
+                            value: environment.styleCard.isReady ? "On" : "Off"
+                        )
+                    }
+                    .accessibilityIdentifier("style-card-link")
                 } header: {
-                    Text("Memory")
+                    Text("Personal")
                 } footer: {
-                    Text("Facts stay on this iPhone and can be used in every chat. Open the list to pin or delete them.")
+                    Text("Profile, memories, morning brief and style rewrite all stay on this iPhone. Preferences wait for your confirmation. Morning brief uses Calendar when connected.")
                 }
 
                 Section {
@@ -91,11 +115,17 @@ struct SettingsView: View {
                         "On-device speech",
                         value: environment.voice.onDeviceRecognitionAvailable ? "Available" : "Unavailable"
                     )
+                    LabeledContent("Speech Recognition", value: environment.voice.speechAuthDescription)
+                    LabeledContent("Microphone", value: environment.voice.micAuthDescription)
+                    Button("Open iOS Settings for Applebot") {
+                        environment.voice.openSystemSettings()
+                    }
                 } header: {
                     Text("Voice")
                 } footer: {
-                    Text("Speech recognition and spoken replies stay on this iPhone. If on-device recognition is unavailable for your language, the mic stays off so audio is never sent to Apple's servers. Hands-free listens again after each spoken reply.")
+                    Text("In a chat, tap the mic (left of Send) or open + → Speak…. On a real iPhone, recognition stays on-device only. The Simulator may use Apple's speech service so you can test voice with make sim.")
                 }
+                .onAppear { environment.voice.refreshAuthDescriptions(); environment.voice.refreshOnDeviceAvailability() }
 
                 Section {
                     Stepper("Passages per answer: \(retrievalLimit)", value: $retrievalLimit, in: 2...6)

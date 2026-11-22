@@ -25,7 +25,7 @@ final class MemoryTests: XCTestCase {
         let facts = (0..<20).map { MemoryFact(text: "User remembers item \($0) with enough words to count") }
         let block = try XCTUnwrap(MemoryBudget.render(facts, maxTokens: 80))
         XCTAssertTrue(block.contains("Things you remember"))
-        XCTAssertTrue(block.contains("User remembers item 0"))
+        XCTAssertTrue(block.contains("User remembers item"))
         XCTAssertLessThanOrEqual(TokenEstimator.estimate(block), 120)
     }
 

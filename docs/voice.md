@@ -32,7 +32,9 @@ Listening stops when the app goes to the background or the screen locks (and Fac
 ## Implementation
 
 - `ios/App/Services/VoiceController.swift` — listening, speaking, hands-free resume
-- Mic + status line in `ChatView`
+- Listening records with `AVAudioRecorder`, then transcribes with `SFSpeechURLRecognitionRequest` (avoids `AVAudioEngine.installTap`, which can abort the app)
+- Tap mic to start, tap again to stop and send
+- Mic + status line in `ChatView`; **+** menu also has Speak…
 - Stop cancels generation, listening and speech together
 
 ## Limits
@@ -46,9 +48,39 @@ Listening stops when the app goes to the background or the screen locks (and Fac
 | Problem | Fix |
 |---|---|
 | Mic does nothing / “unavailable” | Your locale may lack on-device recognition. Type instead, or check iOS language settings |
+| No mic button in the chat bar | Update to the latest build (`make sim` / `make device`). The mic is to the left of Send; **+** also has **Speak…** |
+| Voice on Simulator | Simulator builds allow speech recognition without the on-device-only lock (device builds stay on-device). Enable **I/O → Audio Input** in the Simulator menu |
 | “Microphone is not ready” on Simulator | Enable **I/O → Audio Input** in the Simulator menu, or test on a physical iPhone |
-| App used to crash on mic tap | Fixed: Applebot now checks the mic format and permissions before listening |
+| App crashes on mic tap | Install the latest build (`make device`). Older builds used `AVAudioEngine.installTap` from a `@MainActor` type and trapped with `EXC_BREAKPOINT` / `_dispatch_assert_queue_fail` |
 | No permission sheet | Settings → Applebot → Microphone / Speech Recognition |
 | No spoken reply | Enable **Speak replies**; confirm Silent Mode / volume |
 | Keeps listening forever | Turn off Hands-free, or tap Stop |
-EOF
+
+## Debugging a device crash
+
+1. Reproduce on the phone (USB cable, Developer Mode on).
+2. Pull crash logs:
+
+```bash
+mkdir -p /tmp/applebot-device-crashes
+xcrun devicectl device copy from \
+  --device "Pradeepkumar’s iPhone" \
+  --domain-type systemCrashLogs --source / \
+  --destination /tmp/applebot-device-crashes
+ls -lt /tmp/applebot-device-crashes/Applebot-*.ips | head
+```
+
+Or Xcode → **Window → Devices and Simulators** → select the iPhone → **Open Console** / device logs → open the latest `Applebot` `.ips`.
+
+3. Look at the **faulting thread**. The old mic bug looked like:
+
+```
+_dispatch_assert_queue_fail
+swift_task_checkIsolatedSwift
+VoiceController.beginRecognition …
+AVAudioNodeTap::…RealtimeMessenger_Perform
+```
+
+4. Or **Product → Run** on the device in Xcode, tap the mic, and inspect the stopped thread in the debug navigator.
+
+5. Live logs: Console.app → your iPhone → subsystem `dev.kekaflow.applebot`, category `voice`.

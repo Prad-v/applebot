@@ -125,6 +125,15 @@ public struct CalendarConnector: Connector {
 
     public func disconnect() async {}
 
+    /// Today's events for the morning brief (no model / tool call). Empty when access is not granted.
+    public func todayEvents(limit: Int = 10) async -> [CalendarEventInfo] {
+        let now = clock()
+        let first = calendar.startOfDay(for: now)
+        guard let end = calendar.date(byAdding: .day, value: 1, to: first) else { return [] }
+        guard await provider.permission() == .authorized else { return [] }
+        return (try? await provider.events(from: first, to: end, limit: min(limit, Self.maxEvents))) ?? []
+    }
+
     public func tools() -> [ToolSpec] {
         [listEventsTool, createEventTool]
     }

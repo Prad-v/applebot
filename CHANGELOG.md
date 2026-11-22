@@ -2,6 +2,22 @@
 
 All notable changes to Applebot are documented here. Versions follow semantic versioning.
 
+## 0.6.0
+
+### Added
+- **Personal profile**: name, roles, city, reply style, boundaries, and preference confirmation (Settings → Your profile).
+- **Ranked memory with expiry**: typed facts (`person`, `event`, `openLoop`, `place`, `project`, …), confidence, `lastUsedAt`, and automatic expiry for time-bound facts.
+- **Morning / unlock brief** (opt-in): once per day from Calendar + open loops.
+- **Voice note → RAG pack**: + → Voice note… structures speech into the Voice notes document pack.
+- **Write like me**: on-device style card; `rewrite this: …` uses your samples without cloud fine-tuning.
+- **Local intent router**: skips RAG/tools when the message is chat, emotional, or rewrite so the on-device window stays useful.
+- Docs: [docs/personalization.md](docs/personalization.md).
+
+### Changed
+- Personal context shares ~200 tokens between profile (~80) and ranked memories.
+- Preference facts wait for confirmation instead of silent injection.
+- Delete-all also clears profile, style card, and brief history.
+
 ## 0.5.0
 
 ### Added

@@ -13,7 +13,7 @@ struct MemoriesView: View {
                 Toggle("Remember across chats", isOn: $memory.isEnabled)
                     .accessibilityIdentifier("memory-enabled")
             } footer: {
-                Text("When on, Applebot keeps short facts from your chats on this iPhone and uses them in future conversations. Nothing is uploaded.")
+                Text("When on, Applebot keeps short facts from your chats on this iPhone and uses them in future conversations. Preferences wait for your confirmation in Your profile. Nothing is uploaded.")
             }
 
             if memory.facts.isEmpty {
@@ -28,9 +28,17 @@ struct MemoriesView: View {
                     ForEach(memory.facts) { fact in
                         VStack(alignment: .leading, spacing: 4) {
                             Text(fact.text)
-                            Text(fact.category.rawValue)
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
+                            HStack(spacing: 8) {
+                                Text(fact.category.displayName)
+                                if let expires = fact.expiresAt {
+                                    Text("· expires \(expires.formatted(date: .abbreviated, time: .omitted))")
+                                }
+                                if fact.pinned {
+                                    Image(systemName: "pin.fill")
+                                }
+                            }
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
                         }
                         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                             Button("Delete", role: .destructive) {
@@ -48,6 +56,9 @@ struct MemoriesView: View {
             }
         }
         .navigationTitle("Memories")
-        .onAppear { memory.reload() }
+        .onAppear {
+            memory.reload()
+            memory.purgeExpired()
+        }
     }
 }
