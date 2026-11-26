@@ -238,8 +238,27 @@ final class StocksConnectorTests: XCTestCase, @unchecked Sendable {
         XCTAssertTrue(connector.usesNetwork)
         let status = await connector.status()
         XCTAssertEqual(status, .connected(account: nil))
-        XCTAssertEqual(connector.tools().map(\.name), ["stock_quote"])
+        XCTAssertEqual(connector.tools().map(\.name), ["stock_quote", "stock_quotes"])
         XCTAssertFalse(connector.tools()[0].requiresApproval)
+        XCTAssertFalse(connector.tools()[1].requiresApproval)
+    }
+
+    func testBatchQuotesLoadsMultipleTickers() async throws {
+        let mock = MockHTTPClient { request in
+            let path = request.url?.path ?? ""
+            if path.contains("AAPL") {
+                return (200, body(self.chart(symbol: "AAPL", name: "Apple Inc.", price: 189.3)))
+            }
+            if path.contains("MSFT") {
+                return (200, body(self.chart(symbol: "MSFT", name: "Microsoft", price: 420.0, closes: "[410.0,415.0,420.0]")))
+            }
+            return (404, Data())
+        }
+        let batch = try await StocksConnector.quotes(symbols: ["AAPL", "MSFT", "ZZZZ"], http: mock)
+        XCTAssertEqual(Set(batch.quotes.map(\.symbol)), ["AAPL", "MSFT"])
+        XCTAssertEqual(batch.failures, ["ZZZZ"])
+        let snapshots = batch.quotes.map(\.asSnapshot)
+        XCTAssertEqual(snapshots.count, 2)
     }
 
     func testQuoteForATickerShowsPriceChangeAndRanges() async throws {
@@ -546,7 +565,7 @@ final class LiveDataRegistryTests: XCTestCase {
     func testToolNamesAreUniqueAndNothingNeedsApproval() {
         let tools = all().flatMap { $0.tools() }
         XCTAssertEqual(Set(tools.map(\.name)).count, tools.count)
-        XCTAssertEqual(Set(tools.map(\.name)), ["weather_forecast", "stock_quote", "web_search"])
+        XCTAssertEqual(Set(tools.map(\.name)), ["weather_forecast", "stock_quote", "stock_quotes", "web_search"])
         XCTAssertTrue(tools.allSatisfy { !$0.requiresApproval }, "live lookups are read-only")
     }
 
@@ -561,18 +580,19 @@ final class LiveDataRegistryTests: XCTestCase {
 
         for id in ["weather", "stocks", "web_search"] { await registry.setEnabled(id, true) }
         let active = await registry.activeTools()
-        XCTAssertEqual(active.map(\.name), ["weather_forecast", "stock_quote", "web_search"])
+        XCTAssertEqual(active.map(\.name), ["weather_forecast", "stock_quote", "stock_quotes", "web_search"])
         let activeRows = await registry.snapshot()
         XCTAssertTrue(activeRows.allSatisfy(\.isActive))
     }
 
-    func testCalendarStaysOffTheNetworkAndGmailCountsAsNetwork() async {
+    func testCalendarAndHealthStayOffTheNetworkAndGmailCountsAsNetwork() async {
         let registry = ConnectorRegistry(connectors: [
             CalendarConnector(provider: InMemoryCalendarProvider()),
+            HealthKitConnector(provider: InMemoryHealthKitProvider()),
             GmailConnector(configuration: nil, store: InMemoryTokenStore(), web: ScriptedWeb(outcome: .cancelled)),
         ])
         let rows = await registry.snapshot()
-        XCTAssertEqual(rows.map(\.usesNetwork), [false, true])
+        XCTAssertEqual(rows.map(\.usesNetwork), [false, false, true])
     }
 
     func testDisconnectAllStyleSignOutLeavesKeylessConnectorsUntouched() async {

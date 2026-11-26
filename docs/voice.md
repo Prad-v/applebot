@@ -6,8 +6,8 @@ Talk to Applebot and hear replies. Speech recognition and spoken answers are des
 
 1. In a chat, tap the **mic** next to the message field. Speak, then tap the mic again (or wait for end-of-utterance).
 2. The transcript is sent like a typed message.
-3. With **Settings → Voice → Speak replies** on (default), Applebot reads the answer aloud.
-4. Turn on **Hands-free conversation** to listen again automatically after each spoken reply. Tap **Stop** or leave the chat to end the loop.
+3. With **You → Voice → Speak replies** on (default), Applebot reads the answer aloud.
+4. Turn on **Hands-free conversation** (under **You → Voice**) to listen again automatically after each **voice** turn. Typing a message never opens the mic — only a mic-started utterance arms the resume loop. Tap **Stop** or leave the chat to end the loop.
 
 ## Privacy
 
@@ -26,7 +26,7 @@ Listening stops when the app goes to the background or the screen locks (and Fac
 | Setting | Default | Meaning |
 |---|---|---|
 | Speak replies | On | Read assistant answers aloud |
-| Hands-free conversation | Off | After speaking, start listening again |
+| Hands-free conversation | Off | After a **voice** turn’s spoken reply, start listening again (typed chats stay silent on the mic) |
 | On-device speech | Read-only | Whether the current language supports on-device recognition |
 
 ## Implementation
@@ -34,7 +34,8 @@ Listening stops when the app goes to the background or the screen locks (and Fac
 - `ios/App/Services/VoiceController.swift` — listening, speaking, hands-free resume
 - Listening records with `AVAudioRecorder`, then transcribes with `SFSpeechURLRecognitionRequest` (avoids `AVAudioEngine.installTap`, which can abort the app)
 - Tap mic to start, tap again to stop and send
-- Mic + status line in `ChatView`; **+** menu also has Speak…
+- Mic + status line in `ChatView`; **+** menu also has Speak… (Hands-free lives only under **You → Voice** so it is not toggled by accident)
+- Hands-free resume is armed only when `markVoiceTurn()` runs from a mic utterance; typed sends call `noteTypedInput()` so Speak replies alone never opens the mic
 - Stop cancels generation, listening and speech together
 
 ## Limits
@@ -54,7 +55,8 @@ Listening stops when the app goes to the background or the screen locks (and Fac
 | App crashes on mic tap | Install the latest build (`make device`). Older builds used `AVAudioEngine.installTap` from a `@MainActor` type and trapped with `EXC_BREAKPOINT` / `_dispatch_assert_queue_fail` |
 | No permission sheet | Settings → Applebot → Microphone / Speech Recognition |
 | No spoken reply | Enable **Speak replies**; confirm Silent Mode / volume |
-| Keeps listening forever | Turn off Hands-free, or tap Stop |
+| Keeps listening forever | Turn off Hands-free under **You → Voice**, or tap Stop |
+| Mic opens after a typed reply | Hands-free only resumes after a mic turn; turn Hands-free off if you do not want that loop |
 
 ## Debugging a device crash
 

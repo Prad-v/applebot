@@ -31,42 +31,29 @@ struct ChatsView: View {
         NavigationStack(path: $path) {
             Group {
                 if visible.isEmpty {
-                    emptyState
+                    emptyHome
                 } else {
-                    List {
-                        ForEach(filtered) { conversation in
-                            NavigationLink(value: conversation) {
-                                ConversationRow(conversation: conversation)
-                            }
-                            .swipeActions(edge: .leading) {
-                                Button {
-                                    conversation.pinned.toggle()
-                                } label: {
-                                    Label(conversation.pinned ? "Unpin" : "Pin", systemImage: conversation.pinned ? "pin.slash" : "pin")
-                                }
-                                .tint(.orange)
-                            }
-                        }
-                        .onDelete { offsets in
-                            for index in offsets { modelContext.delete(filtered[index]) }
-                        }
-                    }
-                    .searchable(text: $search, prompt: "Search chats")
+                    conversationHome
                 }
             }
+            .applebotCanvas()
             .safeAreaInset(edge: .top) { AvailabilityBanner() }
-            .navigationTitle("Chats")
-            .navigationDestination(for: Conversation.self) { conversation in
-                ChatView(conversation: conversation, onNewChat: startNewChat)
-                    .id(conversation.id)
-            }
+            .navigationTitle("Applebot")
+            .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button(action: startNewChat) {
-                        Label("New Chat", systemImage: "square.and.pencil")
+                        Image(systemName: "square.and.pencil")
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(ApplebotTheme.accent)
                     }
+                    .accessibilityLabel("New Chat")
                     .accessibilityIdentifier("new-chat")
                 }
+            }
+            .navigationDestination(for: Conversation.self) { conversation in
+                ChatView(conversation: conversation, onNewChat: startNewChat)
+                    .id(conversation.id)
             }
         }
         .onChange(of: path) { _, _ in discardEmptyDrafts() }
@@ -80,7 +67,6 @@ struct ChatsView: View {
             )
             modelContext.insert(conversation)
             path = [conversation]
-            // ChatView sends on appear via a one-shot; stash on conversation title seed.
             conversation.title = String(prompt.prefix(40))
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
                 NotificationCenter.default.post(
@@ -95,19 +81,92 @@ struct ChatsView: View {
         }
     }
 
-    private var emptyState: some View {
-        ContentUnavailableView {
-            Label("No chats yet", systemImage: "bubble.left.and.text.bubble.right")
-        } description: {
-            Text("Everything you ask is answered on this iPhone. No internet needed.")
-        } actions: {
-            Button("Start chatting", action: startNewChat)
-                .buttonStyle(.borderedProminent)
+    private var emptyHome: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: ApplebotTheme.spaceL) {
+                ApplebotHeroEmpty(
+                    symbol: "lock.iphone",
+                    title: ApplebotGreeting.line(name: environment.profile.profile.displayName),
+                    message: "Private by design. Ask anything — answers stay on this iPhone.",
+                    primaryTitle: "Start chatting",
+                    primarySystemImage: "bubble.left",
+                    primaryAction: startNewChat
+                )
+
+                Text("On-device · no account · nothing leaves unless you opt in")
+                    .font(ApplebotTheme.caption())
+                    .foregroundStyle(ApplebotTheme.secondaryInk)
+                    .frame(maxWidth: .infinity)
+            }
+            .padding(.bottom, ApplebotTheme.spaceXL)
         }
     }
 
+    private var conversationHome: some View {
+        List {
+            Section {
+                Text(ApplebotGreeting.line(name: environment.profile.profile.displayName))
+                    .font(ApplebotTheme.display(22))
+                    .foregroundStyle(ApplebotTheme.ink)
+                    .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 2, trailing: 20))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+
+                Text(visible.count == 1
+                     ? "1 conversation"
+                     : "\(visible.count) conversations")
+                    .font(ApplebotTheme.caption())
+                    .foregroundStyle(ApplebotTheme.secondaryInk)
+                    .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 10, trailing: 20))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+            }
+
+            Section {
+                ForEach(filtered) { conversation in
+                    NavigationLink(value: conversation) {
+                        ConversationRowLite(conversation: conversation)
+                    }
+                    .navigationLinkIndicatorVisibility(.hidden)
+                    .listRowInsets(EdgeInsets(top: 12, leading: 20, bottom: 12, trailing: 20))
+                    .listRowBackground(Color.clear)
+                    .swipeActions(edge: .leading) {
+                        Button {
+                            conversation.pinned.toggle()
+                        } label: {
+                            Label(conversation.pinned ? "Unpin" : "Pin", systemImage: conversation.pinned ? "pin.slash" : "pin")
+                        }
+                        .tint(ApplebotTheme.warning)
+                    }
+                    .swipeActions {
+                        Button(role: .destructive) {
+                            deleteConversation(conversation)
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
+                    .contextMenu {
+                        Button {
+                            conversation.pinned.toggle()
+                        } label: {
+                            Label(conversation.pinned ? "Unpin" : "Pin",
+                                  systemImage: conversation.pinned ? "pin.slash" : "pin")
+                        }
+                        Button(role: .destructive) {
+                            deleteConversation(conversation)
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
+                }
+            }
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .searchable(text: $search, prompt: "Search")
+    }
+
     /// Start a brand new conversation: no history, no summary, search scope reset to all documents.
-    /// If a chat screen is open it is replaced, so Back returns to the list rather than the old chat.
     private func startNewChat() {
         let conversation = Conversation(
             useDocuments: !environment.documents.isEmpty,
@@ -115,6 +174,13 @@ struct ChatsView: View {
         )
         modelContext.insert(conversation)
         path = [conversation]
+    }
+
+    /// Delete a saved chat and pop navigation if it was open.
+    private func deleteConversation(_ conversation: Conversation) {
+        path.removeAll { $0.id == conversation.id }
+        modelContext.delete(conversation)
+        try? modelContext.save()
     }
 
     /// Remove conversations that never received a message (and are not currently open).
@@ -129,26 +195,34 @@ extension Notification.Name {
     static let applebotSendPrompt = Notification.Name("applebotSendPrompt")
 }
 
-private struct ConversationRow: View {
+/// Flat conversation row — typography + hairline, no card chrome.
+private struct ConversationRowLite: View {
     let conversation: Conversation
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            HStack {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
                 if conversation.pinned {
-                    Image(systemName: "pin.fill").font(.caption).foregroundStyle(.orange)
+                    Image(systemName: "pin.fill")
+                        .font(.caption2)
+                        .foregroundStyle(ApplebotTheme.warning)
                 }
-                Text(conversation.title).font(.headline).lineLimit(1)
-                Spacer()
+                Text(conversation.title)
+                    .font(.system(.body, design: .default).weight(.medium))
+                    .foregroundStyle(ApplebotTheme.ink)
+                    .lineLimit(1)
+                Spacer(minLength: 8)
                 Text(conversation.updatedAt, style: .relative)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(ApplebotTheme.caption())
+                    .foregroundStyle(ApplebotTheme.tertiaryInk)
             }
             Text(conversation.lastMessagePreview)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .font(ApplebotTheme.footnote())
+                .foregroundStyle(ApplebotTheme.secondaryInk)
                 .lineLimit(2)
+                .multilineTextAlignment(.leading)
         }
-        .padding(.vertical, 2)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
     }
 }

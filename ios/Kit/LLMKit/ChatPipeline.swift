@@ -187,14 +187,17 @@ public struct ChatPipeline: Sendable {
         let toolEngine = engine as? any ToolCallingEngine
         let useTools = !grounded && intent.wantsTools && !tools.isEmpty && toolEngine != nil
         let toolNote = useTools ? PromptBuilder.toolInstructions(now: clock()) : nil
-        let temperature = prompts.tone.samplingTemperature
+        let instructionMode = InstructionMode.resolve(intent: intent, grounded: grounded, useTools: useTools)
+        let temperature = prompts.tone.samplingTemperature(grounded: grounded, intent: intent)
+        let maxTokens = prompts.tone.maximumResponseTokens(grounded: grounded, intent: intent)
         var window = context
         if useTools { window.answerReserve += toolReserveTokens }
 
-        func instructionsText(summary: String?) -> String {
+        func instructionsText(summary: String?, extra: String? = nil) -> String {
             prompts.instructions(
                 summary: summary, grounded: grounded, toolNote: toolNote,
-                emotion: emotion, cue: cue, memories: memories
+                emotion: emotion, cue: cue, memories: memories,
+                mode: instructionMode, extra: extra
             )
         }
 
@@ -212,10 +215,11 @@ public struct ChatPipeline: Sendable {
         }
 
         var lastError: Error = LLMEngineError.contextOverflow
+        var groundingRetried = false
         for pressure in retryPressures {
-            let instructions = instructionsText(summary: summary)
             let fit = window.fit(
-                instructions: instructions, history: history,
+                instructions: instructionsText(summary: summary),
+                history: history,
                 snippets: candidates, question: question, pressure: pressure
             )
             if !fit.dropped.isEmpty {
@@ -224,29 +228,40 @@ public struct ChatPipeline: Sendable {
                 compactions += 1
             }
 
-            let request = LLMRequest(
-                instructions: instructionsText(summary: summary),
-                prompt: prompts.prompt(history: history, snippets: fit.snippets, question: question),
-                temperature: temperature
-            )
+            let promptText = prompts.prompt(history: history, snippets: fit.snippets, question: question)
 
             do {
-                var answer = ""
-                let stream: AsyncThrowingStream<String, Error>
-                if useTools, let toolEngine {
-                    let toolGuard = ToolGuard(
-                        approver: approver, maxCalls: maxToolCalls, maxOutputTokens: maxToolOutputTokens,
-                        emit: { emit(.toolActivity($0)) }
+                let answer = try await streamAnswer(
+                    instructions: instructionsText(summary: summary),
+                    prompt: promptText,
+                    temperature: temperature,
+                    maximumResponseTokens: maxTokens,
+                    useTools: useTools,
+                    toolEngine: toolEngine,
+                    emit: emit
+                )
+
+                // One-shot grounding verify: missing citations → reinforce and regenerate once.
+                if grounded,
+                   !groundingRetried,
+                   PromptBuilder.needsGroundingRetry(answer: answer, snippetCount: fit.snippets.count) {
+                    groundingRetried = true
+                    let corrected = try await streamAnswer(
+                        instructions: instructionsText(summary: summary, extra: PromptBuilder.groundingRetryNote),
+                        prompt: promptText,
+                        temperature: temperature,
+                        maximumResponseTokens: maxTokens,
+                        useTools: false,
+                        toolEngine: nil,
+                        emit: emit
                     )
-                    stream = toolEngine.stream(request, tools: toolGuard.wrap(tools))
-                } else {
-                    stream = engine.stream(request)
+                    return makeResult(
+                        answer: corrected, question: question, snippets: fit.snippets, grounded: grounded,
+                        searchQuery: searchQuery, summary: summary, history: history, compactions: compactions,
+                        emotion: emotion, cue: cue, intent: intent
+                    )
                 }
-                for try await snapshot in stream {
-                    try Task.checkCancellation()
-                    answer = snapshot
-                    emit(.partial(snapshot))
-                }
+
                 return makeResult(
                     answer: answer, question: question, snippets: fit.snippets, grounded: grounded,
                     searchQuery: searchQuery, summary: summary, history: history, compactions: compactions,
@@ -260,6 +275,40 @@ public struct ChatPipeline: Sendable {
         throw lastError
     }
 
+    private func streamAnswer(
+        instructions: String,
+        prompt: String,
+        temperature: Double?,
+        maximumResponseTokens: Int?,
+        useTools: Bool,
+        toolEngine: (any ToolCallingEngine)?,
+        emit: @escaping @Sendable (ChatEvent) -> Void
+    ) async throws -> String {
+        let request = LLMRequest(
+            instructions: instructions,
+            prompt: prompt,
+            temperature: temperature,
+            maximumResponseTokens: maximumResponseTokens
+        )
+        let stream: AsyncThrowingStream<String, Error>
+        if useTools, let toolEngine {
+            let toolGuard = ToolGuard(
+                approver: approver, maxCalls: maxToolCalls, maxOutputTokens: maxToolOutputTokens,
+                emit: { emit(.toolActivity($0)) }
+            )
+            stream = toolEngine.stream(request, tools: toolGuard.wrap(tools))
+        } else {
+            stream = engine.stream(request)
+        }
+        var answer = ""
+        for try await snapshot in stream {
+            try Task.checkCancellation()
+            answer = snapshot
+            emit(.partial(snapshot))
+        }
+        return answer
+    }
+
     /// Style-card rewrite: single short generation, no retrieval or tools.
     private func runRewrite(
         question: String,
@@ -269,7 +318,13 @@ public struct ChatPipeline: Sendable {
         emit: @escaping @Sendable (ChatEvent) -> Void
     ) async throws -> ChatResult {
         let card = styleCard ?? StyleCard(traits: "Clear and natural", isEnabled: true)
-        let request = card.rewriteRequest(draft: question)
+        var request = card.rewriteRequest(draft: question)
+        if request.maximumResponseTokens == nil {
+            request.maximumResponseTokens = prompts.tone.maximumResponseTokens(grounded: false, intent: .rewrite)
+        }
+        if request.temperature == nil {
+            request.temperature = prompts.tone.samplingTemperature(grounded: false, intent: .rewrite)
+        }
         var answer = ""
         for try await snapshot in engine.stream(request) {
             try Task.checkCancellation()

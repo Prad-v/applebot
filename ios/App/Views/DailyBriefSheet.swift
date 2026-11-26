@@ -9,46 +9,73 @@ struct DailyBriefSheet: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    Text(brief.greeting)
-                        .font(.title2.bold())
+                VStack(alignment: .leading, spacing: ApplebotTheme.spaceL) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Brief")
+                            .font(ApplebotTheme.caption().weight(.semibold))
+                            .foregroundStyle(ApplebotTheme.tertiaryInk)
+                            .textCase(.uppercase)
+                            .tracking(0.6)
+                        Text(brief.greeting)
+                            .font(ApplebotTheme.display(24))
+                            .foregroundStyle(ApplebotTheme.ink)
+                    }
 
-                    Group {
-                        Text("Today")
-                            .font(.headline)
+                    briefBlock(title: "Today") {
                         if brief.agendaLines.isEmpty {
                             Text("Nothing on the calendar (or Calendar is off).")
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(ApplebotTheme.secondaryInk)
                         } else {
                             ForEach(brief.agendaLines, id: \.self) { line in
-                                Label(line, systemImage: "calendar")
+                                Text(line)
                             }
                         }
                     }
 
                     if !brief.reminderLines.isEmpty {
-                        Group {
-                            Text("Reminders")
-                                .font(.headline)
+                        briefBlock(title: "Reminders") {
                             ForEach(brief.reminderLines, id: \.self) { line in
-                                Label(line, systemImage: "checklist")
+                                Text(line)
                             }
                         }
                     }
 
+                    if !brief.healthLines.isEmpty {
+                        briefBlock(title: "Health") {
+                            ForEach(brief.healthLines, id: \.self) { line in
+                                Text(line)
+                            }
+                            Text("Not medical advice.")
+                                .font(ApplebotTheme.caption())
+                                .foregroundStyle(ApplebotTheme.tertiaryInk)
+                        }
+                    }
+
+                    if !brief.marketLines.isEmpty {
+                        briefBlock(title: "Markets") {
+                            ForEach(brief.marketLines, id: \.self) { line in
+                                Text(line)
+                            }
+                            Text("Quotes can be delayed. Not financial advice.")
+                                .font(ApplebotTheme.caption())
+                                .foregroundStyle(ApplebotTheme.tertiaryInk)
+                        }
+                    }
+
                     if !brief.openLoops.isEmpty {
-                        Group {
-                            Text("Open loops")
-                                .font(.headline)
+                        briefBlock(title: "Open loops") {
                             ForEach(brief.openLoops, id: \.self) { loop in
-                                Label(loop, systemImage: "circle.dashed")
+                                Text(loop)
                             }
                         }
                     }
+
+                    ApplebotPrimaryButton(title: "Got it", action: onDismiss)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding()
+                .padding(ApplebotTheme.spaceM)
             }
+            .applebotCanvas()
             .navigationTitle("Your brief")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -58,5 +85,19 @@ struct DailyBriefSheet: View {
             }
         }
         .presentationDetents([.medium, .large])
+    }
+
+    @ViewBuilder
+    private func briefBlock(title: String, @ViewBuilder content: () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(ApplebotTheme.caption().weight(.semibold))
+                .foregroundStyle(ApplebotTheme.tertiaryInk)
+                .textCase(.uppercase)
+                .tracking(0.6)
+            content()
+                .font(ApplebotTheme.body())
+                .foregroundStyle(ApplebotTheme.ink)
+        }
     }
 }

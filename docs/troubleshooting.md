@@ -7,7 +7,7 @@
 | "This device does not support Apple Intelligence." | iPhone older than 15 Pro | Use a supported iPhone (15 Pro or newer), or enable an [external model](external-models.md) |
 | "Turn on Apple Intelligence in Settings to chat." | Apple Intelligence is off | **Settings → Apple Intelligence & Siri** → turn on (tap **Open Settings** in the banner), or use an external model |
 | "The on-device model is still downloading." | Model assets not ready yet | Stay on Wi-Fi and power; try again in a few minutes. Needs internet once, never for chatting |
-| "Add your OpenAI/Anthropic API key." | External model switch is on without a key | Paste a key under **Settings → External model**, or turn the switch off |
+| "Add your OpenAI/Anthropic API key." | External model switch is on without a key | Paste a key under **You → External model**, or turn the switch off |
 | "The API key was rejected" | Wrong or revoked key | Paste a fresh key for the selected provider |
 | Other | Unsupported region/language configuration | Check your device language and region support Apple Intelligence |
 
@@ -23,18 +23,18 @@ Apple's safety guardrails refused. Rephrase the request. This is a model-level d
 
 ## Answers ignore my documents
 
-- If **Settings → Conversation style** is not *Neutral* and your message sounded distressed, Applebot skips the document search on purpose. See [emotional chat](emotional-chat.md).
+- If **You → Conversation style** is not *Neutral* and your message sounded distressed, Applebot skips the document search on purpose. See [emotional chat](emotional-chat.md).
 - Check the chat toolbar menu: **Use my documents** must be on, and **Search scope** should include the document.
 - The **Documents** tab must list the document; if import failed, an error appears under *Importing*.
 - Open **Why this answer?** under a reply to see the search query and passages. If the right passage is missing, ask more specifically, or increase **Passages per answer**.
-- If **Settings → Library → Embeddings** shows `hashing-…`, semantic matching is unavailable and only keyword overlap works well. On supported systems it should start with `nl-`.
+- If **You → Library stats → Embeddings** shows `hashing-…`, semantic matching is unavailable and only keyword overlap works well. On supported systems it should start with `nl-`.
 
 ## Attaching documents
 
 | Problem | Fix |
 |---|---|
 | The **+** menu has no "From my library…" | Your library is empty. Import a file first |
-| An attached file shows an error under the message box | Same causes as [import problems](#import-problems); tap the Documents tab for details |
+| An attached file shows an error under the message box | Same causes as [import problems](#import-problems); tap the Library tab for details |
 | A chat stopped using a document I attached | The document was deleted from the library; attach it again |
 | The **New Chat** button in the chat is greyed out | The current chat is still empty, so it is already a new conversation |
 | I can't find an empty chat I started | Chats with no messages are discarded when you leave them |
@@ -70,8 +70,15 @@ Full table in [connectors](connectors.md#troubleshooting). The common ones:
 | "Gmail API has not been used in project …" | Enable the Gmail API in that Google Cloud project |
 | "Your session expired. Reconnect…" | Google test-mode sign-ins last 7 days. Connect again |
 | "Calendar access was denied" | Settings app → Applebot → Calendars → Full Access |
-| "Couldn't reach Open-Meteo / Yahoo Finance / Brave Search" | Check the internet connection and try again |
+| "Apple Health access was denied" / empty Health answers | Settings app → Applebot → Health; allow categories. Clinical records also need a linked provider in the Health app |
+| "Couldn't reach Open-Meteo / Yahoo Finance / Brave Search" | Check the internet connection and try again; Weather may still show a cached forecast |
 | Applebot invents weather or a stock price | Turn on **Use in chats** for Weather / Stocks, leave documents off for that chat, and ask with a place or ticker |
+| "Location access was denied" / no GPS | Settings app → Applebot → Location → While Using; open the Trail tab and refresh GPS outdoors |
+| Offline map blank | Download a pack from Trail while online; see [wilderness](wilderness.md) |
+| LiDAR mesh toggle greyed out / warning on Trail | Normal on iPhone Air and other non-LiDAR models; compass AR overlay still works. See [wilderness](wilderness.md) |
+| Motion / sedentary unavailable | Connect Motion and allow Motion & Fitness; simulators may lack pedometer/activity |
+| Surroundings camera denied / empty description | Settings → Applebot → Camera; more light; see [surroundings](surroundings.md) |
+| Scan tab disabled / LiDAR warning | Expected on iPhone Air; RoomPlan needs Pro + LiDAR. See [scan](scan.md) |
 | Applebot never uses a connector | The chat is using documents (use the notice's **Use … instead** button), or the connector is paused or not connected |
 
 ## Build and test issues
@@ -93,3 +100,4 @@ Full table in [connectors](connectors.md#troubleshooting). The common ones:
 | Docker tests are slow the first time | The first run pulls the Swift image and builds; later runs reuse the `swiftpm-build` volume |
 | `tests-present` fails in CI | Add or update a test under `tests/`, or put `[skip-tests-check]` in the commit message for a pure refactor |
 | `docs-check` fails | Fix the broken link it lists, link new docs from `README.md`, and add the new version to both `CHANGELOG.md` and `site/changelog.html` |
+| Trail shows LiDAR / motion warnings | Expected when a sensor is missing (e.g. iPhone Air without LiDAR). Only that feature is disabled; see [wilderness](wilderness.md) |

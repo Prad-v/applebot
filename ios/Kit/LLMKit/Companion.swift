@@ -33,16 +33,42 @@ public enum ChatTone: String, Sendable, Codable, CaseIterable, Identifiable {
     /// Whether replies adapt to the user's detected emotion and companion cues.
     public var isEmotionAware: Bool { self != .neutral }
 
-    /// Slightly higher sampling temperature for warmer, less robotic replies. Nil for Neutral.
+    /// Default sampling temperature for open conversation. Prefer `samplingTemperature(grounded:intent:)`.
     public var samplingTemperature: Double? {
+        samplingTemperature(grounded: false, intent: .chat)
+    }
+
+    /// Temperature by task: lower for grounded / document answers, moderate for companion chat.
+    public func samplingTemperature(grounded: Bool, intent: ChatIntent) -> Double? {
+        if grounded || intent == .documents {
+            switch self {
+            case .neutral: return 0.2
+            case .warm, .coach: return 0.35
+            }
+        }
         switch self {
         case .neutral: return nil
-        case .warm: return 0.9
-        case .coach: return 0.85
+        case .warm: return 0.75
+        case .coach: return 0.7
         }
     }
 
-    /// The persona instructions for this tone.
+    /// Soft cap on answer length so companion replies stay short and leave room in the window.
+    public func maximumResponseTokens(grounded: Bool, intent: ChatIntent) -> Int? {
+        switch intent {
+        case .emotional:
+            return 220
+        case .rewrite:
+            return 450
+        case .documents:
+            return 550
+        case .chat, .calendar, .reminders, .health, .email, .liveData:
+            if grounded { return 550 }
+            return isEmotionAware ? 320 : 480
+        }
+    }
+
+    /// Full persona (includes companion self-talk examples for Warm / Coach).
     public var persona: String {
         switch self {
         case .neutral:
@@ -51,6 +77,19 @@ public enum ChatTone: String, Sendable, Codable, CaseIterable, Identifiable {
             return Self.warmPersona
         case .coach:
             return Self.coachPersona
+        }
+    }
+
+    /// Shorter persona without long companion examples — used for grounded and tool turns
+    /// so instructions leave more of the ~4k window for passages and tool results.
+    public var compactPersona: String {
+        switch self {
+        case .neutral:
+            return PromptBuilder.defaultPersona
+        case .warm:
+            return Self.warmCompactPersona
+        case .coach:
+            return Self.coachCompactPersona
         }
     }
 
@@ -92,6 +131,16 @@ public enum ChatTone: String, Sendable, Codable, CaseIterable, Identifiable {
         + "Acknowledge how the user feels in one sentence, then help them find one small, concrete next step. "
         + "Ask at most one question. Keep replies short and in plain sentences. "
         + companionSelfTalk + " "
+        + safetyRules
+
+    private static let warmCompactPersona =
+        "You are Applebot, a warm companion running privately on the user's iPhone. "
+        + "Be kind, clear and concise. Use plain sentences. "
+        + safetyRules
+
+    private static let coachCompactPersona =
+        "You are Applebot, a supportive coach running privately on the user's iPhone. "
+        + "Be encouraging, honest and practical. Keep replies short. "
         + safetyRules
 }
 

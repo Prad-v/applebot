@@ -4,8 +4,8 @@ Applebot has three Swift libraries (`LLMKit`, `RAGKit`, `ConnectorKit`) with no 
 
 ```
 SwiftUI app (ios/App)
- ├─ Views: Chats, Chat, Documents, Settings, Lock
- ├─ AppEnvironment  onDeviceEngine · externalStore · activeEngine() · KnowledgeBase · connectors · approvals · availability · import jobs · app lock
+ ├─ Views: Chat home, Chat, Library, Health, Stocks, Trail, Surroundings, Scan, You, Lock (+ Theme/)
+ ├─ AppEnvironment  onDeviceEngine · externalStore · activeEngine() · KnowledgeBase · connectors · approvals · health · medications · stocks · watchlist · holdings · stockAlerts · wilderness · surroundings · roomScan · availability · import jobs · app lock
  ├─ ConnectorsModel / ApprovalCoordinator   connector settings state · pauses a chat until the user approves an action
  ├─ ChatController  one per chat screen; persists messages (SwiftData)
  │
@@ -16,13 +16,18 @@ SwiftUI app (ios/App)
  │   │   └─ MockEngine            tests, previews, simulators without Apple Intelligence
  │   ├─ ExternalModelStore        provider, enable flag, per-provider model/base URL + SecretStore
  │   ├─ ContextManager            token budgeting and trimming
- │   ├─ PromptBuilder             instructions (persona by `ChatTone`, mood guidance, grounding rules, summary), numbered context, query rewrite, summaries
- │   ├─ Companion                 ChatTone, EmotionReading, on-device emotion detectors (see emotional-chat.md)
+ │   ├─ PromptBuilder             instructions by `InstructionMode` (lean persona for RAG/tools, mood, grounding, summary), numbered context, query rewrite, summaries, grounding verify helpers
+ │   ├─ Companion                 ChatTone (full + compact persona, task-aware sampling), EmotionReading, on-device emotion detectors (see emotional-chat.md)
  │   ├─ Memory                    MemoryFact, MemoryBudget, MemoryExtractor (see memory.md)
  │   ├─ PersonalProfile           profile + confirmed prefs + PersonalContextBudget (see personalization.md)
+ │   ├─ BehavioralProfile         routines / interests / stress twin card (see behavioral-profile.md)
  │   ├─ IntentRouter              local chat intent (skip RAG/tools when unneeded)
  │   ├─ StyleCard / VoiceNote / DailyBrief   rewrite SKU · voice→RAG pack · unlock brief
  │   ├─ CheckIn / Automation / FamilyProfile / PersonalVault / RetrievalTuner
+ │   ├─ WellnessScore / Medication / HealthInsightBuilder   Health tab portable logic
+ │   ├─ StocksTracking            watchlist/holdings/alerts/insight (see stocks.md)
+ │   ├─ SurroundingsScene         accessibility scene fact sheet + narration prompts
+ │   ├─ RoomScanSummary           RoomPlan fact sheet + spoken summary prompts
  │   ├─ ToolSpec / ToolGuard      portable tool definition · call cap, approval, output trimming, error capture
  │   └─ ChatPipeline              intent → retrieval → budget → compaction → stream (with tools) → overflow retry
  │
@@ -30,10 +35,16 @@ SwiftUI app (ios/App)
  │   ├─ Connector / ConnectorRegistry   which tools the model is offered
  │   ├─ OAuthSession              PKCE sign-in, refresh, revoke · TokenStore (Keychain)
  │   ├─ CalendarConnector         CalendarProvider: EventKit (device) · in-memory (tests)
+ │   ├─ RemindersConnector        RemindersProvider: EventKit · in-memory (tests)
+ │   ├─ HealthKitConnector        HealthKitProvider: HKHealthStore · in-memory (tests)
  │   ├─ GmailConnector            GmailClient: search, read, save draft (no send)
- │   ├─ WeatherConnector          Open-Meteo geocode + forecast (no key)
- │   ├─ StocksConnector           Yahoo Finance chart / search (no key)
+ │   ├─ LocationConnector         GPS / waypoints / bearings / offline map index (on-device)
+ │   ├─ MotionConnector           Core Motion sedentary / capabilities (on-device)
+ │   ├─ SensorCapability          MotionCapabilities · TrailARCapabilities warnings
+ │   ├─ WeatherConnector          Open-Meteo geocode + forecast + “here” + offline cache
+ │   ├─ StocksConnector           Yahoo Finance chart / search / batch quotes (no key)
  │   ├─ WebSearchConnector        Brave Search API (BRAVE_API_KEY)
+ │   ├─ OfflineMapDownloader      OpenTopoMap tile packs into OfflineMapStore
  │   └─ LiveData                  shared URL / fetch / decode helpers for live lookups
  │
  └─ RAGKit
@@ -60,16 +71,18 @@ Tokens are estimated at ~3.5 characters per token (conservative; there is no pub
 
 ## Life of a message (`ChatPipeline`)
 
-0. **Personal context.** When enabled, `PersonalContextBudget` injects the compact profile plus ranked (non-expired) memory facts (~200 tokens shared).
+0. **Personal context.** When enabled, `PersonalContextBudget` injects the compact profile plus ranked (non-expired) memory facts (~200 tokens shared). Optional `BehavioralContextBudget` adds ~100 tokens of learned routines / interests / stress. Compact health and stocks lines may follow.
 0. **Read mood** (only for the Warm and Coach tones). `EmotionDetecting` scores the message; a strongly distressed user skips retrieval and the reading adds tone guidance to the instructions.
 0. **Intent router.** `IntentRouter` classifies the message locally (chat / documents / calendar / email / liveData / emotional / rewrite) so RAG and tools are skipped when they would waste the window.
 0. **Rewrite fast path.** Style-card rewrites skip retrieval, tools and compaction.
 1. **Retrieve** (if documents are enabled and intent wants them). For a follow-up question, the model first rewrites it into a standalone search query using recent history, then `KnowledgeBase.search` returns ranked passages.
 2. **Compact proactively.** If history exceeds its share, the oldest turns are folded into a rolling summary (generated by the model, with a mechanical fallback if that call fails).
 3. **Fit.** History and passages are trimmed to the budget: oldest history first, then lowest-ranked passages, then passage length.
-4. **Generate.** `PromptBuilder` renders instructions (persona, grounding rules, summary) and the prompt (history, `[n]`-numbered context, question). `AppleFMEngine` streams cumulative text. When connector tools are active (and the answer is not grounded in documents) they are wrapped by `ToolGuard`, passed to the model, and the current date and tool-safety rules are added to the instructions. The model may call them mid-answer; writes pause for the user's approval. 1,200 tokens of the window are reserved for tool results.
+4. **Generate.** `PromptBuilder` picks an `InstructionMode` (conversational / emotional / grounded / tools) so companion examples are dropped on RAG and tool turns. Sampling temperature and `maximumResponseTokens` follow tone + intent. The prompt is history + `[n]`-numbered context + question. `AppleFMEngine` streams cumulative text. When connector tools are active (and the answer is not grounded in documents) they are wrapped by `ToolGuard`, passed to the model, and the current date and tool-safety rules are added to the instructions. The model may call them mid-answer; writes pause for the user's approval. 1,200 tokens of the window are reserved for tool results.
 5. **Recover.** On `contextOverflow`, retry with escalating budget pressure (1.0, 1.6, 2.5 times tighter). Guardrail and availability errors are not retried.
-6. **Finish.** Citations `[n]` are parsed from the answer and mapped to passages; the new `ChatState` (summary + history) is returned for persistence.
+6. **Grounded verify.** If the turn used documents and the answer lacks `[n]` citations (or invents an answer with empty context), regenerate once with a short reinforce note. Then citations are mapped to passages; the new `ChatState` (summary + history) is returned for persistence.
+
+See [response-quality.md](response-quality.md) for instruction modes, sampling caps, and the citation retry.
 
 The engine is created per request with a fresh `LanguageModelSession`. History is rendered into the prompt instead of relying on the session transcript so that `ContextManager` has exact control over what occupies the window.
 
@@ -97,4 +110,4 @@ The knowledge base records the embedder identifier. If it changes (for example, 
 - **Another local model**: implement `LLMEngine` (for example MLX Swift or llama.cpp) and inject it in `AppEnvironment`.
 - **Another embedder**: implement `Embedder`; the identifier drives automatic reindexing.
 - **Another file type**: implement `TextExtractor` and register it in `DocumentExtractor`.
-- **Connectors** (Gmail, Calendar today): implement `Connector` and register it in `AppEnvironment.makeConnectors`. Tools are plain `ToolSpec` data; `AppleFMEngine.DynamicTool` / `ExternalEngine` adapt them. See [connectors](connectors.md).
+- **Connectors** (Gmail, Calendar, Reminders, Apple Health, live data): implement `Connector` and register it in `AppEnvironment.makeConnectors`. Tools are plain `ToolSpec` data; `AppleFMEngine.DynamicTool` / `ExternalEngine` adapt them. See [connectors](connectors.md).

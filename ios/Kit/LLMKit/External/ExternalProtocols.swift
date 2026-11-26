@@ -73,7 +73,9 @@ public protocol ExternalProviderAdapter: Sendable {
     func makeRequest(
         config: ExternalModelConfig,
         messages: [ExternalMessage],
-        tools: [ToolSpec]
+        tools: [ToolSpec],
+        temperature: Double?,
+        maximumResponseTokens: Int?
     ) throws -> URLRequest
     func parseLine(_ line: String) -> [ExternalStreamEvent]
 }
@@ -162,7 +164,9 @@ public struct OpenAIAdapter: ExternalProviderAdapter {
     public func makeRequest(
         config: ExternalModelConfig,
         messages: [ExternalMessage],
-        tools: [ToolSpec]
+        tools: [ToolSpec],
+        temperature: Double? = nil,
+        maximumResponseTokens: Int? = nil
     ) throws -> URLRequest {
         guard let url = config.endpoint else {
             throw LLMEngineError.unavailable(config.problem ?? "Invalid base URL.")
@@ -172,6 +176,8 @@ public struct OpenAIAdapter: ExternalProviderAdapter {
             "stream": true,
             "messages": try messages.map(Self.encodeMessage),
         ]
+        if let temperature { body["temperature"] = temperature }
+        if let maximumResponseTokens { body["max_tokens"] = maximumResponseTokens }
         if !tools.isEmpty {
             body["tools"] = ExternalJSON.toolSchema(for: tools).map { schema in
                 ["type": "function", "function": schema] as [String: Any]
@@ -276,7 +282,9 @@ public struct AnthropicAdapter: ExternalProviderAdapter {
     public func makeRequest(
         config: ExternalModelConfig,
         messages: [ExternalMessage],
-        tools: [ToolSpec]
+        tools: [ToolSpec],
+        temperature: Double? = nil,
+        maximumResponseTokens: Int? = nil
     ) throws -> URLRequest {
         guard let url = config.endpoint else {
             throw LLMEngineError.unavailable(config.problem ?? "Invalid base URL.")
@@ -324,10 +332,11 @@ public struct AnthropicAdapter: ExternalProviderAdapter {
 
         var body: [String: Any] = [
             "model": config.effectiveModel,
-            "max_tokens": maxTokens,
+            "max_tokens": maximumResponseTokens ?? maxTokens,
             "stream": true,
             "messages": chat,
         ]
+        if let temperature { body["temperature"] = temperature }
         if !systemText.isEmpty { body["system"] = systemText }
         if !tools.isEmpty {
             body["tools"] = ExternalJSON.toolSchema(for: tools).map { schema -> [String: Any] in

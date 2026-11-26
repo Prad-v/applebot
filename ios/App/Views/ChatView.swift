@@ -11,6 +11,7 @@ struct ChatView: View {
 
     @Environment(AppEnvironment.self) private var environment
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
 
     @State private var controller = ChatController()
     @State private var draft = ""
@@ -23,6 +24,7 @@ struct ChatView: View {
     @State private var showVoiceError = false
     @State private var showVoiceNote = false
     @State private var voiceNoteTranscript = ""
+    @State private var confirmDelete = false
     @FocusState private var inputFocused: Bool
 
     private var messages: [ChatMessage] {
@@ -35,7 +37,7 @@ struct ChatView: View {
             ConnectorNotice(conversation: conversation)
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(spacing: 12) {
+                    LazyVStack(spacing: 14) {
                         if messages.isEmpty {
                             EmptyChatHint(
                                 useDocuments: conversation.useDocuments && !environment.documents.isEmpty,
@@ -52,7 +54,9 @@ struct ChatView: View {
                             TypingIndicator(status: controller.status)
                                 .id("typing")
                         } else if let status = controller.status {
-                            Text(status).font(.caption).foregroundStyle(.secondary)
+                            Text(status)
+                                .font(ApplebotTheme.caption())
+                                .foregroundStyle(.secondary)
                         }
                         if let error = controller.errorMessage {
                             ErrorRow(message: error) {
@@ -61,7 +65,8 @@ struct ChatView: View {
                         }
                         Color.clear.frame(height: 1).id("bottom")
                     }
-                    .padding()
+                    .padding(.horizontal, ApplebotTheme.spaceM)
+                    .padding(.vertical, ApplebotTheme.spaceS)
                 }
                 .scrollDismissesKeyboard(.interactively)
                 .onChange(of: messages.last?.text) { _, _ in
@@ -73,6 +78,7 @@ struct ChatView: View {
             }
             inputBar
         }
+        .applebotCanvas()
         .navigationTitle(conversation.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -98,12 +104,28 @@ struct ChatView: View {
                         Label(scopeLabel, systemImage: "checklist")
                     }
                     .disabled(environment.documents.isEmpty || !conversation.useDocuments)
+                    Divider()
+                    Button(role: .destructive) {
+                        confirmDelete = true
+                    } label: {
+                        Label("Delete Chat", systemImage: "trash")
+                    }
+                    .accessibilityIdentifier("delete-chat")
                 } label: {
                     Image(systemName: conversation.useDocuments && !environment.documents.isEmpty
                           ? "doc.text.magnifyingglass" : "ellipsis.circle")
                 }
                 .accessibilityIdentifier("chat-options")
             }
+        }
+        .alert("Delete this conversation?", isPresented: $confirmDelete) {
+            Button("Delete", role: .destructive) {
+                deleteConversation()
+            }
+            .accessibilityIdentifier("confirm-delete-chat")
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Messages in this chat will be removed from this iPhone. This can’t be undone.")
         }
         .sheet(item: $inspected) { message in
             SourcesSheet(message: message)
@@ -137,8 +159,9 @@ struct ChatView: View {
         .onAppear {
             pruneScope()
             environment.voice.onUtterance = { text in
+                environment.voice.markVoiceTurn()
                 draft = text
-                send(text)
+                send(text, fromVoice: true)
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .applebotSendPrompt)) { note in
@@ -179,7 +202,12 @@ struct ChatView: View {
             voiceStatus
             composer
         }
-        .background(.bar)
+        .background(Color(UIColor.systemBackground))
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(ApplebotTheme.hairline)
+                .frame(height: 0.33)
+        }
     }
 
     @ViewBuilder
@@ -187,14 +215,14 @@ struct ChatView: View {
         let voice = environment.voice
         if let status = voice.statusMessage ?? voice.errorMessage {
             Text(status)
-                .font(.caption)
-                .foregroundStyle(voice.errorMessage == nil ? Color.secondary : Color.orange)
+                .font(ApplebotTheme.caption())
+                .foregroundStyle(voice.errorMessage == nil ? Color.secondary : ApplebotTheme.warning)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal)
                 .padding(.top, 6)
         } else if voice.phase == .listening, !voice.partialTranscript.isEmpty {
             Text(voice.partialTranscript)
-                .font(.caption)
+                .font(ApplebotTheme.caption())
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal)
@@ -203,27 +231,30 @@ struct ChatView: View {
     }
 
     private var composer: some View {
-        HStack(alignment: .bottom, spacing: 10) {
+        HStack(alignment: .bottom, spacing: 8) {
             attachMenu
 
             TextField("Message", text: $draft, axis: .vertical)
                 .lineLimit(1...6)
                 .focused($inputFocused)
+                .font(ApplebotTheme.body())
                 .padding(.horizontal, 14)
-                .padding(.vertical, 10)
+                .padding(.vertical, 9)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 20))
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(Color(UIColor.secondarySystemBackground))
+                )
                 .accessibilityIdentifier("message-field")
                 .onSubmit { send(draft) }
 
-            // Fixed trailing controls so the TextField cannot squeeze the mic away.
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 micButton
                 sendOrStopButton
             }
             .fixedSize(horizontal: true, vertical: false)
         }
-        .padding(.horizontal)
+        .padding(.horizontal, 14)
         .padding(.vertical, 8)
     }
 
@@ -233,14 +264,18 @@ struct ChatView: View {
             Button {
                 controller.stop(environment: environment)
             } label: {
-                Image(systemName: "stop.circle.fill").font(.system(size: 32))
+                Image(systemName: "stop.circle.fill")
+                    .font(.system(size: 28, weight: .medium))
+                    .foregroundStyle(.secondary)
             }
             .accessibilityLabel("Stop")
         } else {
             Button {
                 send(draft)
             } label: {
-                Image(systemName: "arrow.up.circle.fill").font(.system(size: 32))
+                Image(systemName: "arrow.up.circle.fill")
+                    .font(.system(size: 28, weight: .medium))
+                    .foregroundStyle(ApplebotTheme.accent)
             }
             .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !environment.availability.isAvailable)
             .accessibilityLabel("Send")
@@ -252,11 +287,17 @@ struct ChatView: View {
         Button {
             environment.voice.toggleListening()
         } label: {
-            Image(systemName: environment.voice.phase == .listening ? "mic.fill" : "mic.circle.fill")
-                .font(.system(size: 30))
-                .symbolRenderingMode(.hierarchical)
-                .foregroundStyle(environment.voice.phase == .listening ? Color.red : Color.accentColor)
-                .frame(width: 36, height: 36)
+            Image(systemName: environment.voice.phase == .listening ? "mic.fill" : "mic")
+                .font(.system(size: 18, weight: .medium))
+                .foregroundStyle(environment.voice.phase == .listening ? ApplebotTheme.danger : ApplebotTheme.accent)
+                .frame(width: 32, height: 32)
+                .background(
+                    Circle().fill(
+                        environment.voice.phase == .listening
+                            ? ApplebotTheme.danger.opacity(0.12)
+                            : Color.primary.opacity(0.05)
+                    )
+                )
         }
         .buttonStyle(.plain)
         .accessibilityLabel(environment.voice.phase == .listening ? "Stop listening" : "Speak")
@@ -278,8 +319,6 @@ struct ChatView: View {
             .disabled(controller.isResponding)
 
             Toggle("Speak replies", isOn: Bindable(environment.voice).autoSpeak)
-            Toggle("Hands-free", isOn: Bindable(environment.voice).handsFree)
-                .disabled(!environment.voice.autoSpeak)
 
             Button {
                 startVoiceNote()
@@ -297,9 +336,11 @@ struct ChatView: View {
                 Button { showScope = true } label: { Label("From my library…", systemImage: "books.vertical") }
             }
         } label: {
-            Image(systemName: "plus.circle.fill")
-                .font(.system(size: 32))
-                .foregroundStyle(.secondary)
+            Image(systemName: "plus")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(ApplebotTheme.accent)
+                .frame(width: 32, height: 32)
+                .background(Circle().fill(Color.primary.opacity(0.05)))
         }
         .accessibilityLabel("Attach and voice")
         .accessibilityIdentifier("attach")
@@ -314,7 +355,7 @@ struct ChatView: View {
                 ForEach(jobs) { job in
                     ImportRow(job: job)
                         .padding(10)
-                        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12))
+                        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                 }
                 if conversation.useDocuments, !environment.documents.isEmpty {
                     ScrollView(.horizontal, showsIndicators: false) {
@@ -377,25 +418,39 @@ struct ChatView: View {
         }
     }
 
-    private func send(_ text: String) {
+    private func send(_ text: String, fromVoice: Bool = false) {
         guard environment.availability.isAvailable else { return }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         draft = ""
+        if !fromVoice {
+            // Typed / programmatic prompts must not open the mic after Speak replies.
+            environment.voice.noteTypedInput()
+        }
         environment.voice.stopListening(submit: false)
         controller.send(trimmed, conversation: conversation, environment: environment, context: modelContext)
+    }
+
+    /// Remove this conversation and return to the chat list.
+    private func deleteConversation() {
+        controller.stop(environment: environment)
+        modelContext.delete(conversation)
+        try? modelContext.save()
+        dismiss()
     }
 
     /// Capture speech into a structured note in the Voice notes pack (not a chat send).
     private func startVoiceNote() {
         environment.voice.stopSpeaking()
+        environment.voice.noteTypedInput()
         environment.voice.onUtterance = { text in
             voiceNoteTranscript = text
             showVoiceNote = true
             // Restore normal chat mic behaviour after the note capture.
             environment.voice.onUtterance = { spoken in
+                environment.voice.markVoiceTurn()
                 draft = spoken
-                send(spoken)
+                send(spoken, fromVoice: true)
             }
         }
         environment.voice.startListening()
@@ -413,15 +468,18 @@ struct MessageBubble: View {
     private var isUser: Bool { message.role == .user }
 
     var body: some View {
-        VStack(alignment: isUser ? .trailing : .leading, spacing: 6) {
+        VStack(alignment: isUser ? .trailing : .leading, spacing: 5) {
             Text(Self.rendered(message.text))
                 .textSelection(.enabled)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .foregroundStyle(isUser ? Color.white : Color.primary)
+                .font(ApplebotTheme.body())
+                .padding(.horizontal, 13)
+                .padding(.vertical, 9)
+                .foregroundStyle(isUser ? ApplebotTheme.onAccent : ApplebotTheme.ink)
                 .background(
-                    isUser ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(Color(.secondarySystemBackground)),
-                    in: RoundedRectangle(cornerRadius: 18)
+                    isUser
+                        ? AnyShapeStyle(ApplebotTheme.userBubble)
+                        : AnyShapeStyle(ApplebotTheme.assistantFill),
+                    in: RoundedRectangle(cornerRadius: ApplebotTheme.radiusM, style: .continuous)
                 )
                 .frame(maxWidth: .infinity, alignment: isUser ? .trailing : .leading)
                 .contextMenu {
@@ -440,19 +498,19 @@ struct MessageBubble: View {
     private var footer: some View {
         if !message.toolsUsed.isEmpty {
             Label(message.toolsUsed.joined(separator: " · "), systemImage: "link")
-                .font(.caption)
+                .font(ApplebotTheme.caption())
                 .foregroundStyle(.secondary)
                 .accessibilityIdentifier("tools-used")
         }
         if message.notFound {
             Label("Not found in your documents", systemImage: "questionmark.folder")
-                .font(.caption)
+                .font(ApplebotTheme.caption())
                 .foregroundStyle(.secondary)
         }
         if !message.sources.isEmpty, !feedbackGiven {
             HStack(spacing: 12) {
                 Text("Helpful?")
-                    .font(.caption)
+                    .font(ApplebotTheme.caption())
                     .foregroundStyle(.secondary)
                 Button {
                     recordFeedback(helpful: true)
@@ -467,7 +525,7 @@ struct MessageBubble: View {
                 }
                 .accessibilityLabel("Not helpful")
             }
-            .font(.caption)
+            .font(ApplebotTheme.caption())
             .buttonStyle(.borderless)
         }
         if !message.sources.isEmpty {
@@ -476,18 +534,20 @@ struct MessageBubble: View {
                     ForEach(message.citedSources.isEmpty ? [] : message.citedSources) { source in
                         Button(action: onInspect) {
                             Label(source.label, systemImage: "doc.text")
-                                .font(.caption)
+                                .font(ApplebotTheme.caption())
                                 .lineLimit(1)
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.small)
+                        .tint(ApplebotTheme.accent)
                     }
                     Button(action: onInspect) {
                         Label("Why this answer?", systemImage: "magnifyingglass")
-                            .font(.caption)
+                            .font(ApplebotTheme.caption())
                     }
                     .buttonStyle(.borderless)
                     .controlSize(.small)
+                    .tint(ApplebotTheme.accent)
                 }
             }
         }
@@ -531,7 +591,7 @@ private struct AttachmentChip: View {
         HStack(spacing: 6) {
             Button(action: onTap) {
                 Label(title, systemImage: systemImage)
-                    .font(.caption)
+                    .font(ApplebotTheme.caption())
                     .lineLimit(1)
             }
             if let onRemove {
@@ -541,10 +601,10 @@ private struct AttachmentChip: View {
                 .accessibilityLabel("Remove \(title)")
             }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(.thinMaterial, in: Capsule())
-        .foregroundStyle(.primary)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 5)
+        .background(Color.primary.opacity(0.05), in: Capsule(style: .continuous))
+        .foregroundStyle(.secondary)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("attachment-chip")
     }
@@ -555,12 +615,14 @@ private struct TypingIndicator: View {
     var body: some View {
         HStack(spacing: 8) {
             ProgressView()
+                .controlSize(.small)
+                .tint(ApplebotTheme.accent)
             Text(status ?? "Thinking…")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .font(ApplebotTheme.caption())
+                .foregroundStyle(ApplebotTheme.tertiaryInk)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 6)
+        .padding(.horizontal, 4)
         .accessibilityIdentifier("typing-indicator")
     }
 }
@@ -571,13 +633,13 @@ private struct ErrorRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
-            Image(systemName: "exclamationmark.circle.fill").foregroundStyle(.red)
-            Text(message).font(.subheadline)
+            Image(systemName: "exclamationmark.circle.fill").foregroundStyle(ApplebotTheme.danger)
+            Text(message).font(ApplebotTheme.footnote())
             Spacer(minLength: 0)
-            Button("Retry", action: retry).font(.subheadline.bold())
+            Button("Retry", action: retry).font(ApplebotTheme.footnote().weight(.bold))
         }
         .padding(12)
-        .background(.red.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
+        .background(ApplebotTheme.danger.opacity(0.1), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
 
@@ -596,27 +658,31 @@ private struct EmptyChatHint: View {
     }
 
     var body: some View {
-        VStack(spacing: 14) {
-            Image(systemName: "lock.iphone")
-                .font(.system(size: 40))
-                .foregroundStyle(.tint)
-            Text(tone.isEmotionAware ? "How are you feeling today?" : "Private by design")
-                .font(.title3.bold())
-            Text(tone.isEmotionAware
-                 ? "Talk freely. This stays on your iPhone."
-                 : useDocuments
-                 ? "Answers come from your documents, on this iPhone."
-                 : "Runs entirely on-device. Works in airplane mode.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-            ForEach(suggestions, id: \.self) { suggestion in
-                Button(suggestion) { pick(suggestion) }
-                    .buttonStyle(.bordered)
+        VStack(alignment: .leading, spacing: ApplebotTheme.spaceM) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(tone.isEmotionAware ? "How are you feeling today?" : "Private by design")
+                    .font(ApplebotTheme.display(22))
+                    .foregroundStyle(ApplebotTheme.ink)
+
+                Text(tone.isEmotionAware
+                     ? "Talk freely. This stays on your iPhone."
+                     : useDocuments
+                     ? "Answers come from your documents, on this iPhone."
+                     : "Runs entirely on-device. Works in airplane mode.")
+                    .font(ApplebotTheme.footnote())
+                    .foregroundStyle(ApplebotTheme.secondaryInk)
+                    .lineSpacing(2)
             }
+
+            VStack(spacing: 0) {
+                ForEach(suggestions, id: \.self) { suggestion in
+                    ApplebotSuggestionChip(title: suggestion) { pick(suggestion) }
+                }
+            }
+            .padding(.top, 4)
         }
-        .padding(.vertical, 40)
-        .frame(maxWidth: .infinity)
+        .padding(.vertical, ApplebotTheme.spaceL)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

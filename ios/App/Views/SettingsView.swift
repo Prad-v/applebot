@@ -4,6 +4,7 @@ import LLMKit
 
 struct SettingsView: View {
     @Environment(AppEnvironment.self) private var environment
+    @Environment(ThemeController.self) private var theme
     @Environment(\.modelContext) private var modelContext
     @AppStorage(AppEnvironment.Keys.retrievalLimit) private var retrievalLimit = 4
     @AppStorage(AppEnvironment.Keys.chatTone) private var toneRaw = ChatTone.productDefault.rawValue
@@ -13,14 +14,38 @@ struct SettingsView: View {
         @Bindable var environment = environment
 
         NavigationStack {
-            Form {
-                Section("Model") {
+            List {
+                Section {
+                    youHero
+                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 12, trailing: 16))
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                }
+
+                Section {
+                    NavigationLink {
+                        ThemeSettingsView()
+                    } label: {
+                        LabeledContent("Theme", value: theme.selection.displayName)
+                    }
+                    .accessibilityIdentifier("theme-link")
+                } header: {
+                    Text("Appearance").applebotSectionTitle()
+                } footer: {
+                    Text("Pick a colour theme with text contrast you find comfortable. System follows Light/Dark on this iPhone.")
+                        .font(ApplebotTheme.caption())
+                        .foregroundStyle(ApplebotTheme.secondaryInk)
+                }
+
+                Section {
                     HStack(spacing: 10) {
                         Image(systemName: environment.availability.isAvailable ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                            .foregroundStyle(environment.availability.isAvailable ? .green : .orange)
+                            .foregroundStyle(environment.availability.isAvailable ? .green : ApplebotTheme.warning)
                         Text(environment.availability.isAvailable
                              ? environment.modelSummary
                              : environment.availability.message)
+                            .font(ApplebotTheme.footnote())
+                            .foregroundStyle(ApplebotTheme.ink)
                     }
                     NavigationLink {
                         ExternalModelSettingsView()
@@ -34,6 +59,8 @@ struct SettingsView: View {
                     }
                     .accessibilityIdentifier("external-model-link")
                     LabeledContent("Network", value: networkSummary)
+                } header: {
+                    Text("Model").applebotSectionTitle()
                 }
 
                 Section {
@@ -44,9 +71,10 @@ struct SettingsView: View {
                     }
                     .accessibilityIdentifier("connectors-link")
                 } header: {
-                    Text("Connected services")
+                    Text("Connected services").applebotSectionTitle()
                 } footer: {
                     Text("Let Applebot use Gmail, Calendar, and Reminders when you ask. It asks before it changes anything.")
+                        .font(ApplebotTheme.caption())
                 }
 
                 Section {
@@ -57,10 +85,11 @@ struct SettingsView: View {
                     }
                     .accessibilityIdentifier("tone-picker")
                 } header: {
-                    Text("Conversation style")
+                    Text("Conversation style").applebotSectionTitle()
                 } footer: {
                     Text((ChatTone(rawValue: toneRaw) ?? .neutral).summary
                          + " Applebot reads the mood of your message on this iPhone to match its tone. It is not a therapist.")
+                        .font(ApplebotTheme.caption())
                 }
 
                 Section {
@@ -81,6 +110,16 @@ struct SettingsView: View {
                         )
                     }
                     .accessibilityIdentifier("profile-link")
+
+                    NavigationLink {
+                        BehavioralProfileView()
+                    } label: {
+                        LabeledContent(
+                            "Behavioral patterns",
+                            value: environment.behavior.summaryLine
+                        )
+                    }
+                    .accessibilityIdentifier("behavioral-link")
 
                     NavigationLink {
                         MemoriesView()
@@ -134,9 +173,10 @@ struct SettingsView: View {
                         )
                     )
                 } header: {
-                    Text("Personal")
+                    Text("Personal").applebotSectionTitle()
                 } footer: {
-                    Text("Profile, memories, packs, check-ins, automations and backups stay on this iPhone. Thumbs on document answers retune retrieval for this profile.")
+                    Text("Profile, behavioral patterns, memories, packs, check-ins, automations and backups stay on this iPhone.")
+                        .font(ApplebotTheme.caption())
                 }
 
                 Section {
@@ -155,18 +195,20 @@ struct SettingsView: View {
                         environment.voice.openSystemSettings()
                     }
                 } header: {
-                    Text("Voice")
+                    Text("Voice").applebotSectionTitle()
                 } footer: {
-                    Text("In a chat, tap the mic (left of Send) or open + → Speak…. On a real iPhone, recognition stays on-device only. The Simulator may use Apple's speech service so you can test voice with make sim.")
+                    Text("In a chat, tap the mic (left of Send) or open + → Speak…. Hands-free only reopens the mic after a voice turn, not after typed messages. On a real iPhone, recognition stays on-device only.")
+                        .font(ApplebotTheme.caption())
                 }
                 .onAppear { environment.voice.refreshAuthDescriptions(); environment.voice.refreshOnDeviceAvailability() }
 
                 Section {
                     Stepper("Passages per answer: \(retrievalLimit)", value: $retrievalLimit, in: 2...6)
                 } header: {
-                    Text("Documents")
+                    Text("Library search").applebotSectionTitle()
                 } footer: {
-                    Text("More passages can improve recall, but the on-device model has a small context window, so long passages may be trimmed.")
+                    Text("More passages can improve recall, but the on-device model has a small context window.")
+                        .font(ApplebotTheme.caption())
                 }
 
                 Section {
@@ -174,31 +216,38 @@ struct SettingsView: View {
                     LabeledContent("Passages", value: "\(environment.chunkCount)")
                     LabeledContent("Embeddings", value: environment.embedderIdentifier)
                 } header: {
-                    Text("Library")
+                    Text("Library stats").applebotSectionTitle()
                 }
 
                 Section {
                     Toggle("Require Face ID / passcode", isOn: $environment.lockEnabled)
                 } header: {
-                    Text("Privacy")
+                    Text("Privacy").applebotSectionTitle()
                 } footer: {
                     Text("Locks the app whenever it goes to the background. Data is also encrypted at rest by iOS.")
+                        .font(ApplebotTheme.caption())
                 }
 
                 Section {
                     Button("Delete all chats and documents", role: .destructive) { confirmDelete = true }
                 } footer: {
                     Text("Removes chats, documents, memories, and signs out of connected accounts. This cannot be undone.")
+                        .font(ApplebotTheme.caption())
                 }
 
-                Section("About") {
+                Section {
                     LabeledContent("Version", value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "–")
                     Text(aboutText)
-                        .font(.footnote)
+                        .font(ApplebotTheme.caption())
                         .foregroundStyle(.secondary)
+                } header: {
+                    Text("About").applebotSectionTitle()
                 }
             }
-            .navigationTitle("Settings")
+            .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
+            .applebotCanvas()
+            .navigationTitle("You")
             .confirmationDialog("Delete everything?", isPresented: $confirmDelete, titleVisibility: .visible) {
                 Button("Delete all data", role: .destructive) {
                     Task { await environment.deleteAllData(modelContext: modelContext) }
@@ -207,6 +256,37 @@ struct SettingsView: View {
                 Text("All chats, documents, and remembered facts will be erased from this device.")
             }
         }
+    }
+
+    private var youHero: some View {
+        HStack(spacing: 12) {
+            Text(initials)
+                .font(.system(.subheadline, design: .default).weight(.semibold))
+                .foregroundStyle(ApplebotTheme.accent)
+                .frame(width: 40, height: 40)
+                .background(
+                    Circle().strokeBorder(ApplebotTheme.accent.opacity(0.28), lineWidth: 1)
+                )
+            VStack(alignment: .leading, spacing: 2) {
+                Text(environment.profile.profile.displayName ?? environment.family.active.name)
+                    .font(ApplebotTheme.title())
+                    .foregroundStyle(ApplebotTheme.ink)
+                Text(environment.isUsingExternalModel
+                     ? "External model · messages leave this iPhone"
+                     : "On-device · private by default")
+                    .font(ApplebotTheme.caption())
+                    .foregroundStyle(ApplebotTheme.secondaryInk)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 4)
+    }
+
+    private var initials: String {
+        let name = environment.profile.profile.displayName ?? environment.family.active.name
+        let parts = name.split(separator: " ").prefix(2)
+        let letters = parts.compactMap { $0.first.map(String.init) }
+        return letters.isEmpty ? "A" : letters.joined().uppercased()
     }
 
     /// "Not used" until the user switches on a connector or an external model that talks online.
@@ -228,6 +308,6 @@ struct SettingsView: View {
         if environment.isUsingExternalModel {
             return "Chats are sent to the external model you configured (API key stays in the Keychain on this iPhone). Documents still stay on device for search; only the text needed for each answer is included in the prompt to the provider. Connectors you switch on talk directly to their own services."
         }
-        return "Applebot runs Apple's on-device language model by default. Your messages and documents never leave this iPhone. The only exceptions are a connector you switch on, or an external model you enable in Settings, each of which talks directly to its own service."
+        return "Applebot runs Apple's on-device language model by default. Your messages and documents never leave this iPhone. The only exceptions are a connector you switch on, or an external model you enable in You, each of which talks directly to its own service."
     }
 }

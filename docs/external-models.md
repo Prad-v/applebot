@@ -1,6 +1,6 @@
 # External models (OpenAI and Anthropic)
 
-By default Applebot answers with Apple's on-device language model. In **Settings → External model** you can switch chats to **OpenAI** or **Anthropic** using your own API key.
+By default Applebot answers with Apple's on-device language model. In **You → External model** you can switch chats to **OpenAI** or **Anthropic** using your own API key.
 
 ## What it does
 
@@ -43,7 +43,7 @@ External engines support the same connector tools as the on-device model. The en
 | "The API key was rejected" | Check the key and that it belongs to the selected provider |
 | Rate-limit error | Wait and retry; use a smaller/cheaper model |
 | Custom base URL rejected | Use `https://`, or `http://` only for localhost / LAN |
-| Want on-device again | Settings → External model → turn **Use external model** off |
+| Want on-device again | You → External model → turn **Use external model** off |
 
 ## Implementation notes
 

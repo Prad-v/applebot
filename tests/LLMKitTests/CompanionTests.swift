@@ -114,8 +114,14 @@ final class CompanionTests: XCTestCase {
         XCTAssertFalse(ChatTone.neutral.isEmotionAware)
         XCTAssertEqual(ChatTone(rawValue: "warm"), .warm)
         XCTAssertEqual(ChatTone.productDefault, .warm)
-        XCTAssertEqual(ChatTone.warm.samplingTemperature, 0.9)
+        XCTAssertEqual(ChatTone.warm.samplingTemperature, 0.75)
+        XCTAssertEqual(ChatTone.warm.samplingTemperature(grounded: true, intent: .documents), 0.35)
+        XCTAssertEqual(ChatTone.neutral.samplingTemperature(grounded: true, intent: .documents), 0.2)
         XCTAssertNil(ChatTone.neutral.samplingTemperature)
+        XCTAssertEqual(ChatTone.warm.maximumResponseTokens(grounded: false, intent: .emotional), 220)
+        XCTAssertEqual(ChatTone.warm.maximumResponseTokens(grounded: true, intent: .documents), 550)
+        XCTAssertFalse(ChatTone.warm.compactPersona.contains("How are you feeling today?"))
+        XCTAssertTrue(ChatTone.warm.persona.contains("How are you feeling today?"))
     }
 
     func testGuardrailMessageIsKind() {
@@ -186,7 +192,8 @@ final class CompanionTests: XCTestCase {
         XCTAssertEqual(result.cue, .askingAboutBot)
         XCTAssertTrue(result.snippets.isEmpty)
         XCTAssertTrue(engine.requests[0].instructions.contains("checking in on you"))
-        XCTAssertEqual(engine.requests[0].temperature, 0.9)
+        XCTAssertEqual(engine.requests[0].temperature, 0.75)
+        XCTAssertEqual(engine.requests[0].maximumResponseTokens, 220)
         XCTAssertFalse(engine.requests[0].instructions.contains("ONLY the numbered context"))
     }
 

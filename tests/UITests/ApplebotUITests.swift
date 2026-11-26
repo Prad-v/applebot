@@ -13,14 +13,118 @@ final class ApplebotUITests: XCTestCase {
     }
 
     func testTabsAreReachable() {
-        XCTAssertTrue(app.tabBars.buttons["Chats"].waitForExistence(timeout: 10))
-        app.tabBars.buttons["Documents"].tap()
-        XCTAssertTrue(app.navigationBars["Documents"].waitForExistence(timeout: 5))
-        app.tabBars.buttons["Settings"].tap()
-        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
+        // Companion IA: Chat · Library · Health · Stocks · You
+        XCTAssertTrue(app.tabBars.buttons["Chat"].waitForExistence(timeout: 10))
+        app.tabBars.buttons["Library"].tap()
+        XCTAssertTrue(app.navigationBars["Library"].waitForExistence(timeout: 5))
+        app.tabBars.buttons["Health"].tap()
+        XCTAssertTrue(app.navigationBars["Health"].waitForExistence(timeout: 5))
+        app.tabBars.buttons["Stocks"].tap()
+        XCTAssertTrue(app.navigationBars["Stocks"].waitForExistence(timeout: 5))
+        app.tabBars.buttons["You"].tap()
+        XCTAssertTrue(app.navigationBars["You"].waitForExistence(timeout: 5))
         let model = app.descendants(matching: .any)
             .matching(NSPredicate(format: "label CONTAINS 'Apple Intelligence'")).firstMatch
-        XCTAssertTrue(model.waitForExistence(timeout: 5), "settings should describe the on-device model")
+        XCTAssertTrue(model.waitForExistence(timeout: 5), "You tab should describe the on-device model")
+    }
+
+    func testStocksTabEnablePrompt() {
+        app.tabBars.buttons["Stocks"].tap()
+        XCTAssertTrue(app.navigationBars["Stocks"].waitForExistence(timeout: 10))
+        let enable = app.descendants(matching: .any)["stocks-enable"]
+        if enable.waitForExistence(timeout: 5) {
+            XCTAssertTrue(
+                app.staticTexts.containing(NSPredicate(format: "label CONTAINS 'Not financial advice'")).firstMatch
+                    .waitForExistence(timeout: 5)
+            )
+            let enableButton = app.buttons["Enable Stocks"]
+            if enableButton.waitForExistence(timeout: 3) {
+                enableButton.tap()
+            }
+        }
+        // After enable (or if already on), dashboard or empty watchlist should be reachable.
+        XCTAssertTrue(
+            app.staticTexts["Watchlist"].waitForExistence(timeout: 8)
+                || app.descendants(matching: .any)["stocks-movers"].waitForExistence(timeout: 8)
+                || app.descendants(matching: .any)["stocks-enable"].waitForExistence(timeout: 2),
+            "Stocks tab should show enable prompt or dashboard"
+        )
+    }
+
+    func testHealthTabConnectsAndAddsMedication() {
+        app.tabBars.buttons["Health"].tap()
+        XCTAssertTrue(app.navigationBars["Health"].waitForExistence(timeout: 10))
+
+        let connect = app.descendants(matching: .any)["health-connect"]
+        if connect.waitForExistence(timeout: 5) {
+            // Hero primary button label.
+            let connectButton = app.buttons["Connect Apple Health"]
+            XCTAssertTrue(connectButton.waitForExistence(timeout: 3))
+            connectButton.tap()
+        }
+
+        XCTAssertTrue(
+            app.staticTexts["Wellness score"].waitForExistence(timeout: 10)
+                || app.descendants(matching: .any)["wellness-score"].waitForExistence(timeout: 10),
+            "after connecting, wellness score should appear"
+        )
+        XCTAssertTrue(
+            app.staticTexts.containing(NSPredicate(format: "label CONTAINS 'Not medical advice'")).firstMatch
+                .waitForExistence(timeout: 5)
+        )
+
+        XCTAssertTrue(
+            app.descendants(matching: .any)["health-week-trend"].waitForExistence(timeout: 5)
+                || app.staticTexts["Last 7 days"].waitForExistence(timeout: 5),
+            "7-day wellness trend should appear after connect"
+        )
+        XCTAssertTrue(app.buttons["ask-health-score"].waitForExistence(timeout: 5))
+
+        app.buttons["add-medication"].tap()
+        let name = app.textFields["medication-name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 5))
+        name.tap()
+        name.typeText("Metformin")
+        if app.switches["medication-reminders-toggle"].waitForExistence(timeout: 3) {
+            app.switches["medication-reminders-toggle"].tap()
+            let times = app.textFields["medication-reminder-times"]
+            if times.waitForExistence(timeout: 2) {
+                times.tap()
+                times.typeText("08:00")
+            }
+        }
+        app.buttons["save-medication"].tap()
+        XCTAssertTrue(app.staticTexts["Metformin"].waitForExistence(timeout: 5))
+
+        app.buttons["ask-health-score"].tap()
+        XCTAssertTrue(app.tabBars.buttons["Chat"].waitForExistence(timeout: 5))
+        XCTAssertTrue(
+            app.textFields["message-field"].waitForExistence(timeout: 8)
+                || app.staticTexts.containing(NSPredicate(format: "label CONTAINS 'wellness'")).firstMatch
+                    .waitForExistence(timeout: 8),
+            "Ask from Health should open Chat with a prompt"
+        )
+    }
+
+    func testThemeSettingsListsOptionsAndSelectsMidnight() {
+        app.tabBars.buttons["You"].tap()
+        let link = app.buttons["theme-link"]
+        XCTAssertTrue(link.waitForExistence(timeout: 5))
+        link.tap()
+        XCTAssertTrue(app.navigationBars["Theme"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["theme-system"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["theme-daylight"].exists)
+        XCTAssertTrue(app.buttons["theme-midnight"].exists)
+        XCTAssertTrue(app.buttons["theme-ocean"].exists)
+        XCTAssertTrue(app.buttons["theme-forest"].exists)
+        XCTAssertTrue(app.buttons["theme-highContrast"].exists)
+
+        app.buttons["theme-midnight"].tap()
+        // Selected checkmark is exposed as accessibility label on the row.
+        XCTAssertTrue(app.buttons["theme-midnight"].waitForExistence(timeout: 3))
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["Midnight"].waitForExistence(timeout: 5),
+                      "You tab should show the selected theme name")
     }
 
     func testChatSendsMessageAndShowsStreamedReply() {
@@ -34,7 +138,7 @@ final class ApplebotUITests: XCTestCase {
 
     func testPastedDocumentAppearsAndGroundsAnswer() {
         // Add a document by pasting text.
-        app.tabBars.buttons["Documents"].tap()
+        app.tabBars.buttons["Library"].tap()
         app.buttons["add-document"].tap()
         app.buttons["Paste text"].tap()
 
@@ -50,7 +154,7 @@ final class ApplebotUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Router notes"].waitForExistence(timeout: 10), "document should be listed")
 
         // Ask a question; with documents present the chat should use them (mock engine echoes the question).
-        app.tabBars.buttons["Chats"].tap()
+        app.tabBars.buttons["Chat"].tap()
         startNewChat()
         send("How do I reset the router?")
         let reply = app.staticTexts.containing(NSPredicate(format: "label CONTAINS 'Mock reply'")).firstMatch
@@ -82,6 +186,34 @@ final class ApplebotUITests: XCTestCase {
         app.navigationBars.buttons.firstMatch.tap()
         XCTAssertTrue(app.staticTexts["First topic about routers"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.cells.count, 1, "only the chat with messages should be listed")
+    }
+
+    func testDeleteChatFromInsideConversation() {
+        startNewChat()
+        send("Disposable chat about orchids")
+        let reply = app.staticTexts.containing(NSPredicate(format: "label CONTAINS 'Mock reply'")).firstMatch
+        XCTAssertTrue(reply.waitForExistence(timeout: 10))
+
+        let options = app.buttons["chat-options"]
+        XCTAssertTrue(options.waitForExistence(timeout: 5))
+        options.tap()
+
+        let deleteItem = app.buttons["Delete Chat"]
+        XCTAssertTrue(deleteItem.waitForExistence(timeout: 5))
+        deleteItem.tap()
+
+        let alert = app.alerts["Delete this conversation?"]
+        XCTAssertTrue(alert.waitForExistence(timeout: 5))
+        alert.buttons["Delete"].tap()
+
+        // Returns to chat home; the deleted conversation must not remain.
+        XCTAssertTrue(
+            app.buttons["Start chatting"].waitForExistence(timeout: 5)
+                || app.navigationBars["Applebot"].waitForExistence(timeout: 5),
+            "deleting should pop back to the chat list"
+        )
+        XCTAssertFalse(app.staticTexts["Disposable chat about orchids"].waitForExistence(timeout: 2))
+        XCTAssertFalse(app.textFields["message-field"].exists, "the open chat screen should be gone")
     }
 
     func testAttachDocumentFromChatPlusMenu() {
@@ -161,7 +293,7 @@ final class ApplebotUITests: XCTestCase {
     }
 
     func testConnectorsScreenListsServicesAndConnectsCalendar() {
-        app.tabBars.buttons["Settings"].tap()
+        app.tabBars.buttons["You"].tap()
         let link = app.buttons["connectors-link"]
         XCTAssertTrue(link.waitForExistence(timeout: 5))
         link.tap()
@@ -196,7 +328,7 @@ final class ApplebotUITests: XCTestCase {
         app.launchArguments = ["-UITestMockEngine", "-UITestToolDemo"]
         app.launch()
 
-        app.tabBars.buttons["Settings"].tap()
+        app.tabBars.buttons["You"].tap()
         XCTAssertTrue(app.buttons["connectors-link"].waitForExistence(timeout: 10))
         app.buttons["connectors-link"].tap()
         let connect = app.buttons["connect-calendar"]
@@ -204,7 +336,7 @@ final class ApplebotUITests: XCTestCase {
         connect.tap()
         XCTAssertTrue(app.switches["toggle-calendar"].waitForExistence(timeout: 5))
         app.navigationBars.buttons.firstMatch.tap() // back to Settings
-        app.tabBars.buttons["Chats"].tap()
+        app.tabBars.buttons["Chat"].tap()
         startNewChat()
         send("Add lunch with Sam tomorrow at 12:30")
     }
@@ -228,7 +360,7 @@ final class ApplebotUITests: XCTestCase {
 
     func testNoticeExplainsWhyConnectorsAreIdleWhileSearchingDocuments() {
         // A document in the library makes chats answer from documents, which pauses connector tools.
-        app.tabBars.buttons["Documents"].tap()
+        app.tabBars.buttons["Library"].tap()
         app.buttons["add-document"].tap()
         app.buttons["Paste text"].tap()
         let titleField = app.textFields["e.g. Meeting notes"]
@@ -241,7 +373,7 @@ final class ApplebotUITests: XCTestCase {
         app.navigationBars["Paste text"].buttons["Add"].tap()
         XCTAssertTrue(app.staticTexts["Notes"].waitForExistence(timeout: 10))
 
-        app.tabBars.buttons["Settings"].tap()
+        app.tabBars.buttons["You"].tap()
         app.buttons["connectors-link"].tap()
         let connect = app.buttons["connect-calendar"]
         XCTAssertTrue(connect.waitForExistence(timeout: 5))
@@ -249,7 +381,7 @@ final class ApplebotUITests: XCTestCase {
         XCTAssertTrue(app.switches["toggle-calendar"].waitForExistence(timeout: 5))
         app.navigationBars.buttons.firstMatch.tap()
 
-        app.tabBars.buttons["Chats"].tap()
+        app.tabBars.buttons["Chat"].tap()
         startNewChat()
         let notice = app.descendants(matching: .any)["connector-notice"]
         XCTAssertTrue(notice.waitForExistence(timeout: 5), "the chat should say connectors are paused while documents are used")
@@ -272,7 +404,7 @@ final class ApplebotUITests: XCTestCase {
     // MARK: Helpers
 
     private func startNewChat() {
-        let chats = app.tabBars.buttons["Chats"]
+        let chats = app.tabBars.buttons["Chat"]
         XCTAssertTrue(chats.waitForExistence(timeout: 10))
         let newChat = app.buttons["new-chat"].exists ? app.buttons["new-chat"] : app.buttons["Start chatting"]
         XCTAssertTrue(newChat.waitForExistence(timeout: 5))

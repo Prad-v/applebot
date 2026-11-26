@@ -18,11 +18,65 @@
 <main>
   <h1>Features</h1>
 
+  <h2>Appearance</h2>
+  <ul>
+    <li>Selectable themes under You &rarr; Theme (System, Daylight, Midnight, Ocean, Forest, High contrast) with readable text contrast</li>
+  </ul>
+
+  <h2>Health</h2>
+  <ul>
+    <li>Dedicated <strong>Health</strong> tab for Apple Health activity, vitals, workouts and clinical records (read-only)</li>
+    <li>Applebot-only medications: enter manually or photograph a label (on-device Vision OCR, confirm before save)</li>
+    <li>Optional daily local medication reminders with a <strong>Taken</strong> notification action, plus Siri / Shortcuts to mark taken or ask about wellness score</li>
+    <li>Transparent wellness score, 7-day trend, and on-device awareness narrative with a medical disclaimer</li>
+    <li>Ask Applebot from Health opens Chat with a prepared prompt; morning brief can include health lines</li>
+    <li>Never writes medications back to Apple Health</li>
+  </ul>
+
+  <h2>Stocks</h2>
+  <ul>
+    <li>Dedicated <strong>Stocks</strong> tab for an on-device watchlist, optional holdings (not broker-synced), and threshold alerts</li>
+    <li>Batch delayed Yahoo Finance quotes, market-session label, and on-device awareness narrative with a not-financial-advice disclaimer</li>
+    <li>Ask Applebot from Stocks opens Chat; confirm-first suggested adds and alerts</li>
+    <li>Morning brief can include markets lines; optional Friday portfolio automation; Siri / Shortcuts for watchlist, quote, and portfolio</li>
+    <li>Best-effort background refresh for alerts (no push server); never executes trades</li>
+  </ul>
+
+  <h2>Scan (3D room)</h2>
+  <ul>
+    <li>Dedicated <strong>Scan</strong> tab using Apple RoomPlan (LiDAR Pro) for walk-around room capture</li>
+    <li>Save and share USDZ models; rename / delete on this iPhone</li>
+    <li>Spoken summary of walls, doors, windows, and detected furniture</li>
+    <li>Disabled with a clear warning on iPhone Air / non-LiDAR devices</li>
+  </ul>
+
+  <h2>Surroundings (accessibility)</h2>
+  <ul>
+    <li>Dedicated <strong>Surroundings</strong> tab for blind / low-vision scene understanding</li>
+    <li>Camera capture → on-device Vision (labels, OCR, people) → short spoken description</li>
+    <li><strong>Live mode</strong>: continuous updates spoken when the scene changes (no repeated taps)</li>
+    <li>LiDAR depth assist when available; warning + continue without it on iPhone Air</li>
+    <li>Assistive only — not for safety-critical navigation; frames stay on this iPhone</li>
+  </ul>
+
+  <h2>Trail / wilderness</h2>
+  <ul>
+    <li>Dedicated <strong>Trail</strong> tab for GPS coordinates, waypoints, breadcrumb trail, and compass bearings (works without cell signal)</li>
+    <li>Google Maps–style offline download: pan under a dashed frame, size estimate, detail level, then download OpenTopoMap packs for offline use</li>
+    <li>Weather for “here” via GPS, with a cached forecast when you lose signal</li>
+    <li><strong>Motion</strong> sedentary check (pedometer + activity) with per-sensor warnings when hardware is missing</li>
+    <li><strong>AR trail overlay</strong> with waypoint bearings; LiDAR depth mesh on Pro — disabled with a warning on iPhone Air</li>
+    <li>Ask Applebot from Trail for where you are, bearing to Car, weather here, map packs, or a sedentary check</li>
+    <li>Location and motion stay on this iPhone; not a certified wilderness navigation instrument</li>
+  </ul>
+
   <h2>Chat</h2>
   <ul>
     <li>Streaming answers from Apple's on-device language model by default</li>
+    <li>Leaner prompts for document and tool turns, shorter companion replies, and a quiet citation retry when grounded answers miss sources</li>
     <li>Optional <strong>OpenAI</strong> or <strong>Anthropic</strong> backends in Settings (your API key, Keychain only); switch off anytime to return on-device</li>
-    <li>Saved conversations with search, pinning, and swipe-to-delete</li>
+    <li>Companion Chat home with search, pinning, swipe-to-delete, and long-press pin/delete</li>
+    <li>Delete the open conversation from the chat ⋯ menu (with confirmation)</li>
     <li>Copy and share any answer</li>
     <li>Stop generation at any time</li>
     <li>Start a brand new conversation any time from inside a chat; every chat is independent</li>
@@ -31,8 +85,9 @@
 
   <h2>Memory and personalization</h2>
   <ul>
-    <li>Remembers durable facts across chats on this iPhone; review them in Settings</li>
+    <li>Remembers durable facts across chats on this iPhone; review them under You</li>
     <li>Structured personal profile with confirmed preferences and reply style</li>
+    <li>Behavioral patterns twin card: sleep, exercise, calendar window, interests, stress, spending hints</li>
     <li>Ranked memory with types, confidence, and expiry for events / open loops</li>
     <li>Optional morning brief on unlock from Calendar and open loops</li>
     <li>Document packs UI plus voice notes into a Voice notes pack</li>
@@ -45,7 +100,7 @@
   <h2>Voice</h2>
   <ul>
     <li>Mic button with on-device speech recognition only</li>
-    <li>Spoken replies and optional hands-free listen-after-speak</li>
+    <li>Spoken replies and optional hands-free listen-after-speak (voice turns only; typing never opens the mic)</li>
   </ul>
 
   <h2>Emotional chat</h2>
@@ -62,6 +117,7 @@
   <ul>
     <li><strong>Calendar</strong>: ask about your schedule and add events. Stays on your iPhone</li>
     <li><strong>Reminders</strong>: list to-dos, add reminders, mark them done after approval. Stays on your iPhone</li>
+    <li><strong>Apple Health</strong>: ask about steps, sleep, heart rate, workouts and clinical health records. Read-only; stays on your iPhone</li>
     <li><strong>Gmail</strong>: search and read your email, and save reply drafts. Applebot never sends email</li>
     <li><strong>Weather</strong>: current conditions and a short forecast via Open-Meteo (no account)</li>
     <li><strong>Stocks</strong>: latest prices for tickers, indices and crypto via Yahoo Finance (no account)</li>

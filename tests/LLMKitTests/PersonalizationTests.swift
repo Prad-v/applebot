@@ -94,8 +94,13 @@ final class PersonalizationTests: XCTestCase {
         let router = IntentRouter()
         XCTAssertEqual(router.route(question: "What's on my calendar tomorrow?", useDocuments: false), .calendar)
         XCTAssertEqual(router.route(question: "What reminders are due today?", useDocuments: false), .reminders)
+        XCTAssertEqual(router.route(question: "How many steps did I take today?", useDocuments: false), .health)
+        XCTAssertEqual(router.route(question: "Show my health records for allergies", useDocuments: false), .health)
         XCTAssertEqual(router.route(question: "rewrite this: hello team", useDocuments: false), .rewrite)
         XCTAssertEqual(router.route(question: "what's the weather in Paris?", useDocuments: false), .liveData)
+        XCTAssertEqual(router.route(question: "where am I?", useDocuments: false), .liveData)
+        XCTAssertEqual(router.route(question: "bearing to my waypoint", useDocuments: false), .liveData)
+        XCTAssertEqual(router.route(question: "have I been sitting too long?", useDocuments: false), .liveData)
         XCTAssertEqual(router.route(question: "any emails from Alice?", useDocuments: false), .email)
     }
 
@@ -111,6 +116,8 @@ final class PersonalizationTests: XCTestCase {
         let router = IntentRouter()
         XCTAssertEqual(router.route(question: "How do I reset the router?", useDocuments: true), .documents)
         XCTAssertEqual(router.route(question: "How do I reset the router?", useDocuments: false), .chat)
+        XCTAssertEqual(router.route(question: "Explain the warranty section in my handbook", useDocuments: true), .documents)
+        XCTAssertEqual(router.route(question: "What's the reset procedure?", useDocuments: true), .documents)
     }
 
     // MARK: Style card
@@ -163,14 +170,31 @@ final class PersonalizationTests: XCTestCase {
         ]
         let brief = DailyBriefBuilder.build(
             profile: profile, facts: facts, events: events,
-            reminderTitles: ["Buy milk"], now: start
+            reminderTitles: ["Buy milk"],
+            healthLines: ["Wellness score 72/100 (local formula)", "Sleep 7.2 h"],
+            marketLines: ["Watchlist: 2 up, 1 down of 3"],
+            now: start
         )
         XCTAssertTrue(brief.greeting.contains("Sam"))
         XCTAssertTrue(brief.agendaLines.contains(where: { $0.contains("Design review") }))
         XCTAssertTrue(brief.reminderLines.contains("Buy milk"))
+        XCTAssertTrue(brief.healthLines.contains(where: { $0.contains("Wellness") }))
+        XCTAssertTrue(brief.marketLines.contains(where: { $0.contains("Watchlist") }))
         XCTAssertTrue(brief.openLoops.contains(where: { $0.contains("sleep") }))
         XCTAssertTrue(brief.markdown.contains("Today"))
         XCTAssertTrue(brief.markdown.contains("Reminders"))
+        XCTAssertTrue(brief.markdown.contains("Health"))
+        XCTAssertTrue(brief.markdown.contains("Markets"))
+    }
+
+    func testDailyBriefHealthLinesHelper() {
+        let lines = DailyBriefBuilder.healthLines(
+            steps: 6400, sleepHours: 7.1, restingHeartRate: 60, wellnessScore: 80,
+            dueMedications: ["Metformin"]
+        )
+        XCTAssertTrue(lines.contains(where: { $0.contains("80") }))
+        XCTAssertTrue(lines.contains(where: { $0.contains("6400") }))
+        XCTAssertTrue(lines.contains(where: { $0.contains("Metformin") }))
     }
 
     // MARK: Pipeline integration

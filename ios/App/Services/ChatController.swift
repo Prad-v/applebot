@@ -56,7 +56,6 @@ final class ChatController {
             conversation.profileID = environment.activeProfileID
         }
         let state = ChatState(summary: conversation.summary, history: history)
-        let connectors = environment.connectors
         let approvals = environment.approvals
 
         isResponding = true
@@ -65,10 +64,9 @@ final class ChatController {
         task = Task { [weak self] in
             var assistant: ChatMessage?
             var usedTools: [String] = []
-            // Connector tools (Gmail, Calendar...) for this answer. Actions that change something
-            // pause here until the user approves them in the approval sheet.
+            // Connector tools (Gmail, Calendar...) plus Applebot medications. Writes still pause for approval.
             var pipeline = basePipeline
-            pipeline.tools = await connectors.activeTools()
+            pipeline.tools = await environment.activeChatTools()
             pipeline.approver = { request in await approvals.request(request) }
             do {
                 for try await event in pipeline.send(question: question, state: state, useDocuments: useDocuments) {
@@ -106,6 +104,16 @@ final class ChatController {
                                       question: question, inputHistoryCount: history.count)
                         message.toolsUsed = usedTools
                         environment.voice.speak(result.answer)
+                        environment.behavior.ingestTurn(
+                            BehavioralTurnSignal(
+                                question: question,
+                                intent: result.intent,
+                                emotion: result.emotion?.emotion ?? .neutral,
+                                intensity: result.emotion?.intensity ?? 0,
+                                toolsUsed: usedTools,
+                                searchQuery: result.searchQuery
+                            )
+                        )
                         Task {
                             await environment.memory.learn(
                                 question: question,

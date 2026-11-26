@@ -9,7 +9,7 @@
 //
 // LLMKit, RAGKit and ConnectorKit are pure Swift on Linux, so `swift test` runs inside Docker
 // (see docker-compose.yml). Apple-only code (FoundationModels, NaturalLanguage,
-// PDFKit, Vision, SQLite3, EventKit, Security) is fenced with `#if canImport(...)`.
+// PDFKit, Vision, SQLite3, EventKit, HealthKit, Security) is fenced with `#if canImport(...)`.
 
 import PackageDescription
 

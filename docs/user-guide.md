@@ -8,50 +8,87 @@ Applebot is a chat assistant that runs on your iPhone by default. With the optio
 - An iPhone with Apple Intelligence: iPhone 15 Pro, 15 Pro Max, or any iPhone 16 or newer.
 - Apple Intelligence turned on in **Settings → Apple Intelligence & Siri**. The first time, iOS downloads the model; Applebot shows a banner until it is ready.
 
+## Theme and text contrast
+
+Open **You → Theme** and choose an appearance you find comfortable: **System** (follows iOS Light/Dark), **Daylight**, **Midnight**, **Ocean**, **Forest**, or **High contrast**. Each option sets accent colour and readable text on its canvas. See [ux](ux.md).
+
 ## Chatting
 
-1. Open the **Chats** tab and tap the compose button (or **Start chatting**). Each new chat is a brand new conversation: it has no memory of other chats.
+1. Open the **Chat** tab and tap the compose button (or **Start chatting**). Each new chat is a brand new conversation: it has no memory of other chats.
 2. Type a message and tap the arrow. The answer streams in as it is generated. Tap the stop button to interrupt.
 3. Long-press an answer to **copy** or **share** it.
-4. Swipe a chat right to **pin** it, left (or use Edit) to **delete** it. Use the search field to find chats by title or content.
+4. Swipe a chat right to **pin** it, left to **delete** it. Long-press a row for the same actions. Use the search field to find chats by title or content.
+5. Inside an open chat, open the **⋯** menu and choose **Delete Chat**, then confirm. The conversation is removed from this iPhone and you return to the chat list.
 
 ### Start a new conversation
 
 Tap the compose button in the chat's top bar to start a fresh conversation at any time. Your current chat is saved in the list, and the new one starts empty: no history, no summary, and the document search reset to all documents. The button is greyed out while the current chat is still empty. A chat that never receives a message is not saved.
 
+### Delete a conversation
+
+- **From the list:** swipe left (or long-press → Delete).
+- **From inside a chat:** ⋯ → **Delete Chat** → confirm.
+
+Deletion removes that chat’s messages and summary from on-device storage. It does not erase long-term memory facts, documents, or other chats.
+
 Long conversations are handled automatically: older messages are condensed into a short summary so the model can keep going within its small context window.
 
 ## Memory across chats
 
-In **Settings → Personal → What Applebot remembers**, leave **Remember across chats** on to keep short facts (names, upcoming events, places, projects) on this iPhone and use them in every chat. You can pin or delete each fact. Events and open loops expire unless pinned. See [memory](memory.md).
+In **You → Personal → What Applebot remembers**, leave **Remember across chats** on to keep short facts (names, upcoming events, places, projects) on this iPhone and use them in every chat. You can pin or delete each fact. Events and open loops expire unless pinned. See [memory](memory.md).
 
 ## Personal profile, brief, voice notes, rewrite
 
-- **Your profile** (Settings → Personal): name, city, roles, reply style, boundaries. Preferences learned in chat wait for you to confirm.
+- **Your profile** (You → Personal): name, city, roles, reply style, boundaries. Preferences learned in chat wait for you to confirm.
+- **Behavioral patterns**: optional card of typical sleep, exercise, calendar work window, chat interests, travel affinity, stress tone, and spending hints — learned on this iPhone and injected into chat. Refresh from Health & Calendar anytime.
 - **Morning brief on unlock**: optional once-a-day sheet from Calendar + open loops.
 - **Voice note…** in a chat’s **+** menu: speak, review a structured note, save into the **Voice notes** document pack.
-- **Write like me**: add writing samples in Settings, then send `rewrite this: …` in a chat.
+- **Write like me**: add writing samples under **You**, then send `rewrite this: …` in a chat.
 
-See [personalization](personalization.md).
+See [personalization](personalization.md) and [behavioral-profile](behavioral-profile.md).
+
+## Health
+
+Open the **Health** tab to:
+
+1. **Connect Apple Health** (same permission as Connectors) and see today’s activity and vitals, plus a **7-day** wellness trend.
+2. Review your **wellness score** and a short on-device **awareness** note, or tap **Ask Applebot** to open Chat with a prepared question.
+3. **Add medications** manually or from a label photo (Vision OCR → confirm before save). Optionally enable **daily reminders** (local notifications). Mark a dose with **Taken** on the Health row, on the notification action, or via Siri/Shortcuts (“Mark metformin taken in Applebot”). Meds stay in Applebot only — nothing is written to Apple Health.
+4. Ask “What’s my wellness score in Applebot” via Siri/Shortcuts, or use **Ask Applebot** on the Health tab.
+5. If morning brief is on, unlock can include a short **Health** line (score / sleep / steps / med reminders).
+
+Applebot is not a medical device and does not give medical advice. See [health](health.md).
+
+## Stocks
+
+Open the **Stocks** tab to:
+
+1. **Enable Stocks** (same opt-in as Connectors) and refresh delayed Yahoo quotes for your watchlist.
+2. **Add symbols** to a private watchlist; optionally enter **holdings** (shares + average cost — not broker-synced).
+3. Review **awareness**, movers, and **Ask Applebot** prompts that open Chat.
+4. Create **price / event alerts** (or confirm suggested ones). Notifications can open Stocks or Ask about a ticker.
+5. If morning brief is on, unlock can include a short **Markets** line. Siri/Shortcuts: open watchlist, ask about a symbol, or ask about portfolio.
+
+Quotes can be delayed. Applebot is not a broker and does not give financial advice. See [stocks](stocks.md).
 
 ## Packs, family, check-ins, backup, automations
 
-- **Documents → Packs**: filter, create packs, move documents (Work, Health, Voice notes, …).
+- **Library → Packs**: filter with pills, create packs, move documents (Work, Health, Voice notes, …).
 - **Family profile**: multiple people on one iPhone; Face ID to switch; separate memories and prefs.
 - **Gentle check-ins**: optional soft prompts about open loops.
 - **Helpful?** thumbs on document answers retune on-device search for your profile.
 - **Backup & restore**: encrypted `.applebotpack` with a password you choose.
-- **Automations**: e.g. every Sunday week plan — offered on unlock, runs only if you confirm.
+- **Automations**: e.g. every Sunday week plan or optional Friday portfolio wrap-up — offered on unlock, runs only if you confirm.
 
 See [continuity](continuity.md).
 
 ## Voice
 
-Tap the **mic** in a chat to speak. Applebot only uses **on-device** speech recognition; if that is unavailable for your language, the mic stays off. Turn on **Settings → Voice → Speak replies** to hear answers, and **Hands-free conversation** to listen again after each reply. See [voice](voice.md).
+Tap the **mic** in a chat to speak. Applebot only uses **on-device** speech recognition; if that is unavailable for your language, the mic stays off. Turn on **You → Voice → Speak replies** to hear answers, and **Hands-free conversation** to listen again after each **voice** reply (typing never starts the mic). See [voice](voice.md).
 
 ## Conversation style and emotional chat
 
-In **Settings → Conversation style**, choose how Applebot talks:
+In **You → Conversation style**, choose how Applebot talks:
 
 - **Warm companion** (default): kind and attentive. It answers "how are you?" in character, listens first, and acknowledges how you feel.
 - **Neutral**: concise and factual.
@@ -63,7 +100,7 @@ In the warm and coach styles, Applebot reads the mood of each message on your iP
 
 Applebot uses Apple Intelligence on this iPhone unless you switch on an external model.
 
-1. Open **Settings → External model**.
+1. Open **You → External model**.
 2. Choose **OpenAI** or **Anthropic**, paste your API key, and optionally pick a model.
 3. Turn on **Use external model**.
 
@@ -73,13 +110,30 @@ Chats then call that provider over the network. A small banner in the chat remin
 
 Connectors let Applebot look things up in your accounts and on the web when you ask, and propose actions that you approve first. They are **off until you switch them on**.
 
-1. Open **Settings → Connected services → Connectors**.
-2. Connect **Calendar**, **Reminders**, or **Gmail**, or turn on **Use in chats** for **Weather**, **Stocks**, or **Web search**.
-3. Ask in a chat, for example "What's on my calendar tomorrow?", "What reminders are due today?", "Remind me to call Sam tomorrow", "Any emails from Alice this week?", "What's the weather in Paris?", "What's AAPL at?", "What did the Fed decide this week?", or "Add lunch with Sam tomorrow at 12:30".
+1. Open **You → Connected services → Connectors**.
+2. Connect **Calendar**, **Reminders**, **Apple Health**, **Location**, or **Gmail**, or turn on **Use in chats** for **Weather**, **Stocks**, or **Web search**.
+3. Ask in a chat, for example "What's on my calendar tomorrow?", "What reminders are due today?", "Remind me to call Sam tomorrow", "Any emails from Alice this week?", "What's the weather in Paris?", "Where am I?", "What's AAPL at?", "What did the Fed decide this week?", or "Add lunch with Sam tomorrow at 12:30".
 
-Reading and live lookups happen straight away. Anything that **changes** something (saving a Gmail draft, adding a calendar event or reminder, completing a reminder) shows a sheet with the exact content, and only happens if you tap the green button. **Don't allow**, dismissing the sheet, or leaving the chat all mean no. Applebot never sends email: it can only save a draft for you to review and send yourself.
+Reading and live lookups happen straight away. Anything that **changes** something (saving a Gmail draft, adding a calendar event or reminder, completing a reminder, saving a waypoint) shows a sheet with the exact content, and only happens if you tap the green button. **Don't allow**, dismissing the sheet, or leaving the chat all mean no. Applebot never sends email: it can only save a draft for you to review and send yourself.
 
-Weather and Stocks need no setup. Gmail needs a Google OAuth client ID; Web search needs a Brave Search API key. See [connectors](connectors.md).
+For wilderness / no-signal use, open the **Trail** tab: connect Location, download an offline map while you have signal, and save waypoints. Optionally **Connect Motion** for a soft sedentary check, and open **AR trail overlay** for a camera HUD with bearings. On iPhone Air (no LiDAR) the depth-mesh toggle is disabled with a warning; compass AR still works. See [wilderness](wilderness.md).
+
+## Surroundings (accessibility)
+
+Open the **Surroundings** tab to hear a short description of what is in front of the camera:
+
+1. Accept the safety note (assistive only — not for navigation).
+2. Allow **Camera**.
+3. Point the phone and tap **Describe what’s around me**, or turn on **Live mode** for continuous spoken updates when the scene changes (no repeated taps).
+4. Applebot analyzes frames on-device (Vision labels, text, people), narrates with the on-device model when available, and speaks the result. Live mode stops when you leave the tab or turn it off.
+
+On iPhone Air, LiDAR depth assist is unavailable and a warning is shown; camera description still works. See [surroundings](surroundings.md).
+
+## Scan (3D room)
+
+Open the **Scan** tab on a **LiDAR** iPhone (Pro) to walk a room with Apple RoomPlan, save a **USDZ** model, share it, and hear a short spoken summary of walls, doors, windows, and furniture. On iPhone Air the scan button is disabled with a warning. This is approximate — not for construction plans. See [scan](scan.md).
+
+Weather, Stocks, Calendar, Reminders, Location, Motion and Apple Health need no build-time keys. Gmail needs a Google OAuth client ID; Web search needs a Brave Search API key. See [connectors](connectors.md).
 
 Connectors work in chats that are **not** searching your documents. If you have documents in your library, a notice in the chat offers to use your active connectors instead.
 
@@ -109,7 +163,7 @@ Imported documents are added to your library and **attached to this chat**. They
 - With documents in your library, new chats use them automatically. The toolbar menu in a chat has **Use my documents** to turn this on or off.
 - Choose **Search all documents** or pick specific documents to restrict the search.
 - Answers cite passages like `[1]`. Tap a source chip, or **Why this answer?**, to see the search query and every passage given to the model.
-- If the documents do not contain the answer, Applebot says so instead of guessing. Remember that a small on-device model can still make mistakes, so check important facts against the source.
+- If the documents do not contain the answer, Applebot says so instead of guessing. When an answer should cite your passages but does not, Applebot quietly retries once with a stronger cite-or-say-so instruction. Remember that a small on-device model can still make mistakes, so check important facts against the source.
 
 Good questions are specific ("What is the late fee on invoices?") rather than very broad ("Tell me everything"). For broad requests, ask for a summary of one document by choosing it in the search scope.
 
@@ -117,8 +171,8 @@ Good questions are specific ("What is the late fee on invoices?") rather than ve
 
 - **On-device by default.** There are no Applebot servers, accounts, or analytics. With connectors and the external model off there are no network requests at all. A connector or external model you switch on talks directly from your iPhone to that service and nowhere else.
 - **Encrypted at rest.** Chats and the document library are stored in a protected folder (iOS file protection).
-- **App lock.** In **Settings → Privacy**, turn on **Require Face ID / passcode** to lock the app whenever it goes to the background.
-- **Delete everything.** **Settings → Delete all chats and documents** erases all data Applebot stores and signs out of connected accounts.
+- **App lock.** In **You → Privacy**, turn on **Require Face ID / passcode** to lock the app whenever it goes to the background.
+- **Delete everything.** **You → Delete all chats and documents** erases all data Applebot stores and signs out of connected accounts.
 
 ## Settings reference
 
@@ -132,7 +186,8 @@ Good questions are specific ("What is the late fee on invoices?") rather than ve
 | Passages per answer | How many retrieved passages are given to the model (2 to 6, default 4). More can help recall; the on-device context is small, so passages may be trimmed |
 | Library | Number of documents and passages, and which embedding model indexes them |
 | Require Face ID / passcode | Locks the app in the background |
-| Connectors | Connect Gmail and Calendar, and switch Weather, Stocks and Web search on or off (see [connectors](connectors.md)) |
+| Connectors | Connect Gmail, Calendar, Reminders, Apple Health and Location, and switch Weather, Stocks and Web search on or off (see [connectors](connectors.md)) |
+| Trail | GPS, waypoints, breadcrumb trail, offline topographic maps (see [wilderness](wilderness.md)) |
 
 ## Limits to be aware of
 

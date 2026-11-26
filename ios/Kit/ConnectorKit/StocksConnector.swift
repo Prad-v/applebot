@@ -32,7 +32,7 @@ public struct StocksConnector: Connector {
     public func connect() async throws {}
     public func disconnect() async {}
 
-    public func tools() -> [ToolSpec] { [quoteTool] }
+    public func tools() -> [ToolSpec] { [quoteTool, quotesTool] }
 
     // MARK: Tool
 
@@ -53,6 +53,74 @@ public struct StocksConnector: Connector {
                 return try await Self.lookup(query, http: http, calendar: calendar)
             }
         )
+    }
+
+    private var quotesTool: ToolSpec {
+        let http = self.http, calendar = self.calendar
+        return ToolSpec(
+            name: "stock_quotes",
+            description: "Get latest prices for several tickers at once (comma-separated, up to 12). Prefer this for a watchlist overview. Pass tickers such as AAPL,MSFT,BTC-USD.",
+            parameters: [
+                ToolParameter("symbols", "Comma-separated tickers (AAPL,MSFT,^GSPC). Max 12."),
+            ],
+            label: "Looking up prices",
+            handler: { arguments in
+                guard let raw = arguments.string("symbols") else {
+                    throw ConnectorError.invalidArgument("Pass comma-separated tickers, for example AAPL,MSFT.")
+                }
+                let symbols = raw
+                    .split(separator: ",")
+                    .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines).uppercased() }
+                    .filter { !$0.isEmpty }
+                guard !symbols.isEmpty else {
+                    throw ConnectorError.invalidArgument("Pass comma-separated tickers, for example AAPL,MSFT.")
+                }
+                let batch = try await Self.quotes(symbols: Array(symbols.prefix(12)), http: http)
+                if batch.quotes.isEmpty {
+                    throw ConnectorError.invalidArgument("No quotes matched those tickers. Try symbols like AAPL.")
+                }
+                var lines = batch.quotes.map { Self.render($0, calendar: calendar) }
+                if !batch.failures.isEmpty {
+                    lines.append("Could not load: " + batch.failures.joined(separator: ", ") + ".")
+                }
+                lines.append("Quotes can be delayed up to 15 minutes. Not financial advice.")
+                return lines.joined(separator: "\n\n")
+            }
+        )
+    }
+
+    /// Batch chart lookups for the Stocks tab (partial failures listed separately).
+    public func fetchQuotes(symbols: [String]) async throws -> BatchQuotes {
+        try await Self.quotes(symbols: symbols, http: http)
+    }
+
+    public struct BatchQuotes: Sendable, Equatable {
+        public var quotes: [Quote]
+        public var failures: [String]
+    }
+
+    public static func quotes(symbols: [String], http: HTTPClient) async throws -> BatchQuotes {
+        var seen = Set<String>()
+        var ordered: [String] = []
+        for raw in symbols {
+            let symbol = WatchlistItemInfo.normalizeSymbol(String(raw.prefix(20)))
+            guard !symbol.isEmpty, seen.insert(symbol).inserted else { continue }
+            ordered.append(symbol)
+        }
+        var quotes: [Quote] = []
+        var failures: [String] = []
+        for symbol in ordered.prefix(24) {
+            do {
+                if let quote = try await chart(symbol: symbol, http: http) {
+                    quotes.append(quote)
+                } else {
+                    failures.append(symbol)
+                }
+            } catch {
+                failures.append(symbol)
+            }
+        }
+        return BatchQuotes(quotes: quotes, failures: failures)
     }
 
     // MARK: Lookup
@@ -92,18 +160,60 @@ public struct StocksConnector: Connector {
         return response.quotes?.compactMap(\.symbol).first
     }
 
-    struct Quote: Equatable {
-        var symbol: String
-        var name: String?
-        var exchange: String?
-        var currency: String?
-        var price: Double
-        var previousClose: Double?
-        var dayHigh: Double?
-        var dayLow: Double?
-        var yearHigh: Double?
-        var yearLow: Double?
-        var time: Date?
+    public struct Quote: Equatable, Sendable {
+        public var symbol: String
+        public var name: String?
+        public var exchange: String?
+        public var currency: String?
+        public var price: Double
+        public var previousClose: Double?
+        public var dayHigh: Double?
+        public var dayLow: Double?
+        public var yearHigh: Double?
+        public var yearLow: Double?
+        public var time: Date?
+
+        public init(
+            symbol: String,
+            name: String? = nil,
+            exchange: String? = nil,
+            currency: String? = nil,
+            price: Double,
+            previousClose: Double? = nil,
+            dayHigh: Double? = nil,
+            dayLow: Double? = nil,
+            yearHigh: Double? = nil,
+            yearLow: Double? = nil,
+            time: Date? = nil
+        ) {
+            self.symbol = symbol
+            self.name = name
+            self.exchange = exchange
+            self.currency = currency
+            self.price = price
+            self.previousClose = previousClose
+            self.dayHigh = dayHigh
+            self.dayLow = dayLow
+            self.yearHigh = yearHigh
+            self.yearLow = yearLow
+            self.time = time
+        }
+
+        public var asSnapshot: StockQuoteSnapshot {
+            StockQuoteSnapshot(
+                symbol: symbol,
+                name: name,
+                exchange: exchange,
+                currency: currency,
+                price: price,
+                previousClose: previousClose,
+                dayHigh: dayHigh,
+                dayLow: dayLow,
+                yearHigh: yearHigh,
+                yearLow: yearLow,
+                asOf: time
+            )
+        }
     }
 
     private struct ChartResponse: Decodable {
@@ -140,7 +250,7 @@ public struct StocksConnector: Connector {
     }
 
     /// The quote for an exact symbol, or nil when Yahoo does not know it.
-    static func chart(symbol: String, http: HTTPClient) async throws -> Quote? {
+    public static func chart(symbol: String, http: HTTPClient) async throws -> Quote? {
         let encoded = symbol.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed.subtracting(CharacterSet(charactersIn: "/"))) ?? symbol
         let url = try LiveData.url(chartURL + encoded, ["interval": "1d", "range": "5d"])
         let data: Data

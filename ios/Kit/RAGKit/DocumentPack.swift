@@ -4,6 +4,7 @@ import LLMKit
 /// Document library packs: first-class `DocumentRecord.pack`, with legacy `"Pack / Title"` fallback.
 public enum DocumentPack {
     public static let voiceNotes = "Voice notes"
+    public static let health = "Health"
     public static let separator = " / "
     public static let unfiledLabel = "Unfiled"
 

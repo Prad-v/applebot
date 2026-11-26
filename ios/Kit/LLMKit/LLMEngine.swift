@@ -26,11 +26,19 @@ public struct LLMRequest: Sendable, Equatable {
     public var prompt: String
     /// Optional sampling temperature (higher = more varied). Engines that do not support it ignore this.
     public var temperature: Double?
+    /// Soft cap on generated tokens. Engines that do not support it ignore this.
+    public var maximumResponseTokens: Int?
 
-    public init(instructions: String, prompt: String, temperature: Double? = nil) {
+    public init(
+        instructions: String,
+        prompt: String,
+        temperature: Double? = nil,
+        maximumResponseTokens: Int? = nil
+    ) {
         self.instructions = instructions
         self.prompt = prompt
         self.temperature = temperature
+        self.maximumResponseTokens = maximumResponseTokens
     }
 }
 

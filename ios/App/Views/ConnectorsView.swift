@@ -123,41 +123,52 @@ struct ApprovalSheet: View {
 
     var body: some View {
         NavigationStack {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Applebot wants to do this. Nothing happens unless you approve.")
-                    .font(.subheadline)
+            VStack(alignment: .leading, spacing: ApplebotTheme.spaceM) {
+                Text("Nothing happens unless you approve.")
+                    .font(ApplebotTheme.footnote())
                     .foregroundStyle(.secondary)
 
                 ScrollView {
                     Text(request.detail)
+                        .font(ApplebotTheme.body())
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(14)
                 }
-                .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
                 .accessibilityIdentifier("approval-detail")
 
-                VStack(spacing: 10) {
+                VStack(spacing: 8) {
                     Button {
                         onDecision(true)
                     } label: {
-                        Text(request.confirmLabel).frame(maxWidth: .infinity)
+                        Text(request.confirmLabel)
+                            .font(.system(.subheadline, design: .default).weight(.semibold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .foregroundStyle(ApplebotTheme.onAccent)
+                            .background(ApplebotTheme.accent, in: Capsule(style: .continuous))
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
+                    .buttonStyle(.plain)
                     .accessibilityIdentifier("approval-approve")
 
-                    Button(role: .cancel) {
+                    Button {
                         onDecision(false)
                     } label: {
-                        Text("Don't allow").frame(maxWidth: .infinity)
+                        Text("Don't allow")
+                            .font(.system(.subheadline, design: .default).weight(.medium))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .foregroundStyle(ApplebotTheme.accent)
+                            .background(
+                                Capsule(style: .continuous)
+                                    .strokeBorder(ApplebotTheme.accent.opacity(0.28), lineWidth: 1)
+                            )
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.large)
+                    .buttonStyle(.plain)
                     .accessibilityIdentifier("approval-decline")
                 }
             }
-            .padding()
+            .padding(ApplebotTheme.spaceM)
+            .applebotCanvas()
             .navigationTitle(request.title)
             .navigationBarTitleDisplayMode(.inline)
         }
@@ -179,20 +190,24 @@ struct ConnectorNotice: View {
         if !active.isEmpty, conversation.useDocuments, !environment.documents.isEmpty {
             HStack(alignment: .top, spacing: 10) {
                 Image(systemName: "link")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ApplebotTheme.accentSoft)
+                    .font(.body.weight(.semibold))
                 VStack(alignment: .leading, spacing: 4) {
                     Text("\(names) won't be used while this chat searches your documents.")
-                        .font(.footnote)
+                        .font(ApplebotTheme.footnote())
                     Button("Use \(names) instead") {
                         conversation.useDocuments = false
                     }
-                    .font(.footnote.bold())
+                    .font(ApplebotTheme.footnote().weight(.semibold))
                     .accessibilityIdentifier("use-connectors-instead")
                 }
                 Spacer(minLength: 0)
             }
-            .padding(10)
-            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12))
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: ApplebotTheme.radiusS, style: .continuous)
+                    .fill(ApplebotTheme.accent.opacity(0.08))
+            )
             .padding(.horizontal)
             .padding(.top, 8)
             .accessibilityElement(children: .contain)

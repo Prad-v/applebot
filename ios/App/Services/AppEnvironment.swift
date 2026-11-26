@@ -80,6 +80,7 @@ final class AppEnvironment {
         static let lockEnabled = "lockEnabled"
         static let retrievalLimit = "retrievalLimit"
         static let chatTone = "chatTone"
+        static let appearanceTheme = ThemeController.Keys.appearanceTheme
         static let memoryEnabled = MemoryStore.Keys.enabled
         static let voiceAutoSpeak = VoiceController.Keys.autoSpeak
         static let voiceHandsFree = VoiceController.Keys.handsFree
@@ -95,6 +96,8 @@ final class AppEnvironment {
     let memory = MemoryStore()
     /// Structured profile + confirmed preferences.
     let profile: PersonalProfileStore
+    /// Learned routines / interests / stress patterns (behavioral twin card).
+    let behavior: BehavioralProfileStore
     /// Optional “write like me” style card for rewrites.
     let styleCard: StyleCardStore
     /// Opt-in morning / unlock brief.
@@ -107,12 +110,109 @@ final class AppEnvironment {
     let automations: AutomationStore
     /// On-device speech input and spoken replies.
     let voice = VoiceController()
-    /// When set, ChatsView opens a new chat and sends this prompt (check-in / automation).
+    /// Applebot-only medications (Health tab).
+    let medications = MedicationStore()
+    /// Health tab dashboard (Apple Health read-only + wellness insights).
+    let health = HealthDashboardController()
+    /// Stocks watchlist (on-device).
+    let watchlist = WatchlistStore()
+    /// User-entered holdings (on-device, not broker-synced).
+    let holdings = HoldingsStore()
+    /// Stock price / event alerts.
+    let stockAlerts = StockAlertStore()
+    /// Stocks tab dashboard (quotes + awareness).
+    let stocks = StocksDashboardController()
+    /// Trail tab: GPS, waypoints, offline maps.
+    let wilderness = WildernessDashboardController()
+    /// Surroundings tab: camera scene description for accessibility.
+    let surroundings = SurroundingsController()
+    /// Scan tab: RoomPlan 3D room capture.
+    let roomScan = RoomScanController()
+    @ObservationIgnored private let roomScanStore: RoomScanFileStore
+    /// Shared with `HealthKitConnector` for the Health tab.
+    @ObservationIgnored private let healthProvider: any HealthKitProvider
+    /// Shared Stocks connector instance for the Stocks tab batch refresh.
+    @ObservationIgnored private let stocksConnector: StocksConnector
+    /// Core Location controller for continuous trail recording (optional).
+    @ObservationIgnored let locationController: CoreLocationController?
+    /// Shared GPS provider for Trail UI and Location / Weather connectors.
+    @ObservationIgnored private let locationProvider: any LocationProvider
+    /// Core Motion provider for sedentary checks (optional on restricted devices).
+    @ObservationIgnored private let motionProvider: any MotionProvider
+    /// On-disk offline map packs (shared with MapKit overlays).
+    @ObservationIgnored let offlineMapStore: OfflineMapFileStore?
+    @ObservationIgnored private let trailStore: any TrailStore
+    /// When set, ChatsView opens a new chat and sends this prompt (check-in / automation / Health Ask).
     var pendingChatPrompt: String?
+    /// Selected root tab (Health Ask switches to Chat).
+    var selectedTab: AppTab = .chat
 
-    /// Combined profile + ranked memory for the chat pipeline.
+    /// Switch to Chat and queue a prompt for a new conversation.
+    func askInChat(_ prompt: String) {
+        let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        selectedTab = .chat
+        pendingChatPrompt = trimmed
+    }
+
+    /// Apply actions queued by notifications or App Intents / Siri.
+    func processPendingActions() {
+        let actions = PendingAppActionStore.shared.drain()
+        guard !actions.isEmpty else { return }
+        for action in actions {
+            switch action {
+            case .markMedicationTaken(let id):
+                medications.markTaken(id)
+                selectedTab = .health
+            case .markMedicationTakenByName(let name):
+                _ = medications.markTaken(named: name)
+                selectedTab = .health
+            case .askWellnessScore:
+                let prompt = health.askPrompt(kind: .score, medications: medications.confirmed)
+                askInChat(prompt)
+            case .openHealth:
+                selectedTab = .health
+            case .openStocks:
+                selectedTab = .stocks
+            case .askAboutSymbol(let symbol):
+                askInChat(
+                    "What might be driving \(symbol)'s move? Use stock_quote and web search if available. "
+                        + "Do not recommend trades. Not financial advice."
+                )
+            case .snoozeAlert(let id):
+                stockAlerts.snooze(id)
+                selectedTab = .stocks
+            case .askPortfolioSummary:
+                let prompt = stocks.askPrompt(kind: .holdings, holdings: holdings.holdings)
+                askInChat(prompt)
+            }
+        }
+    }
+
+    /// Combined profile + ranked memory + behavioral patterns + compact health/meds + stocks for the chat pipeline.
     var personalContextBlock: String? {
-        memory.personalContext(profile: profile.profile)
+        let base = memory.personalContext(profile: profile.profile)
+        let behaviorBlock = behavior.promptBlock
+        let healthBlock = HealthContextBudget.render(
+            medications: medications.confirmed,
+            score: health.score,
+            activityLine: health.activityLine
+        )
+        let stocksBlock = StocksContextBudget.render(
+            watchlist: watchlist.items,
+            holdings: holdings.holdings,
+            quotes: stocks.quoteMap
+        )
+        return [base, behaviorBlock, healthBlock, stocksBlock].compactMap { $0 }.joined(separator: "\n\n").nilIfEmpty
+    }
+
+    /// Connector tools plus Applebot medication / watchlist / holdings tools.
+    func activeChatTools() async -> [ToolSpec] {
+        var tools = await connectors.activeTools()
+        tools.append(contentsOf: medications.tools())
+        tools.append(contentsOf: watchlist.tools(quotes: stocks.quoteMap))
+        tools.append(contentsOf: holdings.tools(quotes: stocks.quoteMap))
+        return tools
     }
 
     /// Active family profile id (for chats / documents scoping).
@@ -127,6 +227,7 @@ final class AppEnvironment {
         family = familyStore
         let pid = familyStore.activeID
         profile = PersonalProfileStore(defaults: defaults, profileID: pid)
+        behavior = BehavioralProfileStore(defaults: defaults, profileID: pid)
         styleCard = StyleCardStore(defaults: defaults, profileID: pid)
         dailyBrief = DailyBriefController(defaults: defaults, profileID: pid)
         checkIns = CheckInController(defaults: defaults, profileID: pid)
@@ -159,8 +260,22 @@ final class AppEnvironment {
         }
         knowledgeBase = KnowledgeBase(store: store, embedder: embedder)
 
+        let built = Self.makeConnectors(mock: useMockEngine)
+        healthProvider = built.healthProvider
+        locationController = built.locationController
+        locationProvider = built.locationProvider
+        motionProvider = built.motionProvider
+        trailStore = built.trailStore
+        offlineMapStore = built.mapStore
+        let scansRoot = AppPaths.dataDirectory.appendingPathComponent(
+            useMockEngine ? "room-scans-mock" : "room-scans",
+            isDirectory: true
+        )
+        roomScanStore = RoomScanFileStore(directory: scansRoot)
+        // Separate instance for the Stocks tab batch refresh (stateless HTTP; chat tools use the registry copy).
+        stocksConnector = StocksConnector()
         connectors = ConnectorsModel(registry: ConnectorRegistry(
-            connectors: Self.makeConnectors(mock: useMockEngine),
+            connectors: built.connectors,
             preferences: useMockEngine ? InMemoryConnectorPreferences() : UserDefaultsConnectorPreferences()
         ))
 
@@ -182,7 +297,12 @@ final class AppEnvironment {
     /// Bind SwiftData so memory facts can load. Call once from the root view.
     func attachModelContext(_ context: ModelContext) {
         memory.attach(context: context, profile: profile, profileID: family.activeID)
+        medications.attach(context: context, profileID: family.activeID)
+        watchlist.attach(context: context, profileID: family.activeID)
+        holdings.attach(context: context, profileID: family.activeID)
+        stockAlerts.attach(context: context, profileID: family.activeID)
         Task { await knowledgeBase.setIngestProfileID(family.activeID) }
+        processPendingActions()
     }
 
     /// Switch family profile (Face ID when required) and reload scoped personalization.
@@ -191,6 +311,7 @@ final class AppEnvironment {
         let ok = await family.select(id)
         guard ok else { return false }
         profile.bind(profileID: id)
+        behavior.bind(profileID: id)
         styleCard.bind(profileID: id)
         dailyBrief.bind(profileID: id)
         checkIns.bind(profileID: id)
@@ -198,15 +319,71 @@ final class AppEnvironment {
         automations.bind(profileID: id)
         automations.installTemplatesIfEmpty()
         memory.bind(profileID: id)
+        medications.bind(profileID: id)
+        watchlist.bind(profileID: id)
+        holdings.bind(profileID: id)
+        stockAlerts.bind(profileID: id)
         await knowledgeBase.setIngestProfileID(id)
         await refreshDocuments()
         await refreshDailyBriefIfNeeded()
         checkIns.consider(facts: memory.facts)
         automations.considerDue()
+        if health.isConnected {
+            await health.refresh(medications: medications.confirmed, includeInsight: true)
+        }
+        if stocks.isConnectorEnabled {
+            await stocks.refresh(watchlist: watchlist.items, holdings: holdings.holdings, includeInsight: true)
+        }
         return true
     }
 
     func start() async {
+        health.configure(provider: healthProvider, engine: { [weak self] in
+            self?.activeEngine() ?? MockEngine()
+        })
+        stocks.configure(
+            connector: stocksConnector,
+            isEnabled: { [weak self] in
+                guard let self else { return false }
+                return await self.connectors.registry.isEnabled("stocks")
+            },
+            engine: { [weak self] in
+                self?.activeEngine() ?? MockEngine()
+            }
+        )
+        if let offlineMapStore {
+            wilderness.configure(
+                connectors: connectors,
+                locationProvider: locationProvider,
+                locationController: locationController,
+                motionProvider: motionProvider,
+                trail: trailStore,
+                maps: offlineMapStore
+            )
+        }
+        surroundings.configure(
+            engine: { [weak self] in
+                self?.activeEngine() ?? MockEngine()
+            },
+            speak: { [weak self] text in
+                self?.voice.speakForced(text)
+            },
+            isSpeaking: { [weak self] in
+                self?.voice.isSpeaking == true
+            }
+        )
+        surroundings.refreshCapabilities()
+        surroundings.refreshCameraPermission()
+        roomScan.configure(
+            store: roomScanStore,
+            engine: { [weak self] in
+                self?.activeEngine() ?? MockEngine()
+            },
+            speak: { [weak self] text in
+                self?.voice.speakForced(text)
+            }
+        )
+        roomScan.refreshCapabilities()
         do {
             try await knowledgeBase.open()
         } catch {
@@ -215,6 +392,9 @@ final class AppEnvironment {
         await refreshDocuments()
         refreshAvailability()
         await connectors.refresh()
+        await health.refreshStatus()
+        await stocks.refreshStatus()
+        await wilderness.refreshStatus()
         voice.refreshOnDeviceAvailability()
         if !isUsingExternalModel, let engine = onDeviceEngine as? AppleFMEngine {
             engine.prewarm(
@@ -226,6 +406,8 @@ final class AppEnvironment {
         await refreshDailyBriefIfNeeded()
         checkIns.consider(facts: memory.facts)
         automations.considerDue()
+        processPendingActions()
+        StocksBackgroundRefresh.schedule()
     }
 
     func unlock() async {
@@ -258,9 +440,19 @@ final class AppEnvironment {
         case .active:
             refreshAvailability()
             voice.refreshOnDeviceAvailability()
+            processPendingActions()
             // Permissions can change in the Settings app while Applebot is in the background.
             Task {
                 await connectors.refresh()
+                await stocks.refreshStatus()
+                if stocks.isConnectorEnabled, !watchlist.items.isEmpty || !holdings.holdings.isEmpty {
+                    await stocks.refresh(
+                        watchlist: watchlist.items,
+                        holdings: holdings.holdings,
+                        includeInsight: false
+                    )
+                    await stockAlerts.evaluateAndNotify(quotes: stocks.quoteMap)
+                }
                 await refreshDailyBriefIfNeeded()
                 checkIns.consider(facts: memory.facts)
                 automations.considerDue()
@@ -275,12 +467,38 @@ final class AppEnvironment {
         guard dailyBrief.isEnabled else { return }
         let events = await todayBriefEvents()
         let reminders = await todayBriefReminders()
+        // Prefer a fresh Health snapshot when connected so the brief can mention sleep/steps/score.
+        if health.isConnected || health.permission == .authorized {
+            await health.refresh(medications: medications.confirmed, includeInsight: false)
+        } else {
+            await health.refreshStatus()
+        }
+        var healthLines = health.briefHealthLines
+        let medNames = medications.reminderNames
+        if !medNames.isEmpty {
+            healthLines.append(contentsOf: DailyBriefBuilder.healthLines(dueMedications: medNames).filter { line in
+                !healthLines.contains(line)
+            })
+        }
+        // Refresh watchlist quotes when Stocks is on so the brief can mention movers.
+        await stocks.refreshStatus()
+        if stocks.isConnectorEnabled, !watchlist.items.isEmpty || !holdings.holdings.isEmpty {
+            await stocks.refresh(
+                watchlist: watchlist.items,
+                holdings: holdings.holdings,
+                includeInsight: false
+            )
+        }
+        let marketLines = stocks.briefMarketLines
         dailyBrief.considerShowing(
             profile: profile.profile,
             facts: memory.facts,
             events: events,
-            reminderTitles: reminders
+            reminderTitles: reminders,
+            healthLines: healthLines,
+            marketLines: marketLines
         )
+        await refreshBehavioralProfile()
     }
 
     func todayBriefEvents() async -> [BriefEvent] {
@@ -425,7 +643,8 @@ final class AppEnvironment {
             memories: memory.facts,
             documents: vaultDocs,
             retrievalWeights: retrievalTuner.weights,
-            automations: automations.recipes
+            automations: automations.recipes,
+            behavioralProfile: behavior.profile
         )
     }
 
@@ -438,6 +657,7 @@ final class AppEnvironment {
         let payload = try PersonalVaultCrypto.importPayload(from: data, password: password)
         profile.replace(payload.personalProfile)
         styleCard.replace(payload.styleCard)
+        behavior.replace(payload.behavioralProfile)
         retrievalTuner.apply(payload.retrievalWeights)
         if replaceMemories {
             memory.replaceAll(payload.memories)
@@ -448,6 +668,74 @@ final class AppEnvironment {
         for doc in payload.documents {
             _ = await importText(title: doc.title, text: doc.text, pack: doc.pack, autoDismiss: true)
         }
+    }
+
+    /// Pull Health week + today's calendar into the behavioral twin card.
+    func refreshBehavioralProfile() async {
+        guard behavior.isEnabled else { return }
+        if health.isConnected || health.permission == .authorized {
+            await health.refresh(medications: medications.confirmed, includeInsight: false)
+        }
+        var samples: [BehavioralDaySample] = health.weekPoints.map { point in
+            BehavioralDaySample(
+                day: point.day,
+                sleepHours: point.sleepHours,
+                steps: point.steps,
+                workoutCount: point.workoutCount
+            )
+        }
+        if samples.isEmpty, let today = health.today {
+            samples = [
+                BehavioralDaySample(
+                    day: Date(),
+                    sleepHours: today.sleepHours,
+                    steps: today.steps,
+                    workoutCount: health.workouts.count
+                )
+            ]
+        } else if let today = health.today, !samples.isEmpty {
+            // Overlay today's workout count onto the matching day sample.
+            let calendar = Calendar.current
+            if let index = samples.firstIndex(where: { calendar.isDate($0.day, inSameDayAs: Date()) }) {
+                samples[index] = BehavioralDaySample(
+                    day: samples[index].day,
+                    sleepHours: today.sleepHours ?? samples[index].sleepHours,
+                    steps: today.steps ?? samples[index].steps,
+                    workoutCount: health.workouts.count,
+                    firstEventHour: samples[index].firstEventHour,
+                    lastEventHour: samples[index].lastEventHour
+                )
+            }
+        }
+
+        let events = await todayBriefEvents()
+        if !events.isEmpty {
+            let calendar = Calendar.current
+            let timed = events.filter { !$0.isAllDay }
+            let starts = timed.map { calendar.component(.hour, from: $0.start) }
+            let ends = timed.map { calendar.component(.hour, from: $0.end) }
+            let firstHour = starts.min()
+            let lastHour = ends.max()
+            let day = calendar.startOfDay(for: Date())
+            if let index = samples.firstIndex(where: { calendar.isDate($0.day, inSameDayAs: day) }) {
+                samples[index] = BehavioralDaySample(
+                    day: samples[index].day,
+                    sleepHours: samples[index].sleepHours,
+                    steps: samples[index].steps,
+                    workoutCount: samples[index].workoutCount,
+                    firstEventHour: firstHour ?? samples[index].firstEventHour,
+                    lastEventHour: lastHour ?? samples[index].lastEventHour
+                )
+            } else {
+                samples.append(BehavioralDaySample(
+                    day: day,
+                    firstEventHour: firstHour,
+                    lastEventHour: lastHour
+                ))
+            }
+        }
+
+        behavior.ingestDays(samples)
     }
 
     /// Structure a voice transcript and ingest it into the Voice notes pack.
@@ -539,7 +827,14 @@ final class AppEnvironment {
         try? await knowledgeBase.removeAll()
         try? modelContext.delete(model: Conversation.self)
         memory.deleteAll()
+        medications.deleteAll()
+        health.clearInsights()
+        watchlist.deleteAll()
+        holdings.deleteAll()
+        stockAlerts.deleteAll()
+        stocks.clearInsights()
         profile.clear()
+        behavior.clear()
         styleCard.clear()
         dailyBrief.clearHistory()
         checkIns.clearHistory()
@@ -582,42 +877,167 @@ final class AppEnvironment {
         }
     }
 
-    private static func makeConnectors(mock: Bool) -> [any Connector] {
+    private struct BuiltConnectors {
+        var connectors: [any Connector]
+        var healthProvider: any HealthKitProvider
+        var locationProvider: any LocationProvider
+        var locationController: CoreLocationController?
+        var motionProvider: any MotionProvider
+        var trailStore: any TrailStore
+        var mapStore: OfflineMapFileStore?
+    }
+
+    private static func makeConnectors(mock: Bool) -> BuiltConnectors {
         let web = WebAuthSession()
+        let trailRoot = AppPaths.dataDirectory.appendingPathComponent(mock ? "trail-mock" : "trail", isDirectory: true)
+        let mapsRoot = AppPaths.dataDirectory.appendingPathComponent(mock ? "maps-mock" : "maps", isDirectory: true)
+        let weatherCache = FileWeatherCacheStore(directory: trailRoot)
+        let trailStore: any TrailStore = FileTrailStore(directory: trailRoot)
+        let mapStore = OfflineMapFileStore(directory: mapsRoot)
+        let locationController = CoreLocationController()
+        let locationProvider = locationController.asProvider
+
         if mock {
             // UI tests and `make sim MOCK=1`: no permission prompts, no Keychain. The live-data
             // connectors only touch the network when switched on and called, which the mock
             // engine never does, and web search has no key here.
             let now = Date()
+            let dayStart = Calendar.current.startOfDay(for: now)
             let sample = CalendarEventInfo(
                 id: "demo-1", title: "Design review", start: now.addingTimeInterval(3600),
                 end: now.addingTimeInterval(7200), location: "Room 4"
             )
             let sampleReminder = ReminderInfo(id: "rem-1", title: "Ship onboarding", due: now.addingTimeInterval(7200))
-            return [
-                CalendarConnector(provider: InMemoryCalendarProvider(permission: .notDetermined, events: [sample])),
-                RemindersConnector(provider: InMemoryRemindersProvider(permission: .notDetermined, reminders: [sampleReminder])),
-                GmailConnector(configuration: nil, store: InMemoryTokenStore(), web: web),
-                WeatherConnector(),
-                StocksConnector(),
-                WebSearchConnector(configuration: nil),
+            var healthSamples: [HealthSampleInfo] = [
+                HealthSampleInfo(
+                    id: "hk-1", metric: .steps, value: 6420, unit: "steps",
+                    start: now.addingTimeInterval(-3600), end: now
+                ),
+                HealthSampleInfo(
+                    id: "hk-sleep", metric: .sleep, value: 7.2 * 3600, unit: "s",
+                    start: dayStart.addingTimeInterval(-8 * 3600), end: dayStart.addingTimeInterval(-0.8 * 3600)
+                ),
+                HealthSampleInfo(
+                    id: "hk-rhr", metric: .restingHeartRate, value: 62, unit: "count/min",
+                    start: dayStart, end: dayStart.addingTimeInterval(60)
+                ),
+                HealthSampleInfo(
+                    id: "hk-energy", metric: .activeEnergy, value: 320, unit: "kcal",
+                    start: dayStart, end: now
+                ),
             ]
+            // Prior days so the Health tab 7-day trend has mock data.
+            for offset in 1...6 {
+                guard let day = Calendar.current.date(byAdding: .day, value: -offset, to: dayStart) else { continue }
+                let steps = Double(5000 + offset * 350)
+                healthSamples.append(HealthSampleInfo(
+                    id: "hk-steps-\(offset)", metric: .steps, value: steps, unit: "steps",
+                    start: day.addingTimeInterval(10 * 3600), end: day.addingTimeInterval(18 * 3600)
+                ))
+                healthSamples.append(HealthSampleInfo(
+                    id: "hk-sleep-\(offset)", metric: .sleep, value: (6.5 + Double(offset % 3) * 0.4) * 3600, unit: "s",
+                    start: day.addingTimeInterval(-7.5 * 3600), end: day.addingTimeInterval(-0.5 * 3600)
+                ))
+                healthSamples.append(HealthSampleInfo(
+                    id: "hk-rhr-\(offset)", metric: .restingHeartRate, value: Double(58 + offset), unit: "count/min",
+                    start: day, end: day.addingTimeInterval(60)
+                ))
+            }
+            let sampleWorkout = HealthWorkoutInfo(
+                id: "wo-1", activityType: "Walking",
+                start: now.addingTimeInterval(-7200), end: now.addingTimeInterval(-5400),
+                durationMinutes: 30, totalEnergyKcal: 120, totalDistanceMeters: 2400
+            )
+            let sampleRecord = HealthClinicalRecordInfo(
+                id: "cr-1", recordType: "allergy", displayName: "Penicillin"
+            )
+            let healthProvider = InMemoryHealthKitProvider(
+                permission: .notDetermined,
+                samples: healthSamples,
+                workouts: [sampleWorkout],
+                records: [sampleRecord]
+            )
+            let mockLocation = InMemoryLocationProvider(permission: .notDetermined)
+            let mockMotion = InMemoryMotionProvider(permission: .notDetermined)
+            return BuiltConnectors(
+                connectors: [
+                    CalendarConnector(provider: InMemoryCalendarProvider(permission: .notDetermined, events: [sample])),
+                    RemindersConnector(provider: InMemoryRemindersProvider(permission: .notDetermined, reminders: [sampleReminder])),
+                    HealthKitConnector(provider: healthProvider),
+                    GmailConnector(configuration: nil, store: InMemoryTokenStore(), web: web),
+                    LocationConnector(provider: mockLocation, trail: trailStore, maps: mapStore),
+                    MotionConnector(provider: mockMotion),
+                    WeatherConnector(locationProvider: mockLocation, cache: weatherCache),
+                    StocksConnector(),
+                    WebSearchConnector(configuration: nil),
+                ],
+                healthProvider: healthProvider,
+                locationProvider: mockLocation,
+                locationController: nil,
+                motionProvider: mockMotion,
+                trailStore: trailStore,
+                mapStore: mapStore
+            )
         }
         // The client ID and search key are injected at build time from GOOGLE_CLIENT_ID and
         // BRAVE_API_KEY (see docs/connectors.md).
         let clientID = Bundle.main.object(forInfoDictionaryKey: "GoogleOAuthClientID") as? String ?? ""
         let searchKey = Bundle.main.object(forInfoDictionaryKey: "BraveSearchAPIKey") as? String ?? ""
-        return [
-            CalendarConnector(provider: EventKitCalendarProvider()),
-            RemindersConnector(provider: EventKitRemindersProvider()),
-            GmailConnector(
-                configuration: GmailConfiguration(clientID: clientID),
-                store: KeychainTokenStore(), web: web
-            ),
-            WeatherConnector(),
-            StocksConnector(),
-            WebSearchConnector(configuration: WebSearchConfiguration(apiKey: searchKey)),
-        ]
+        #if canImport(HealthKit)
+        let healthProvider: any HealthKitProvider = HealthKitStoreProvider()
+        #else
+        let healthProvider: any HealthKitProvider = InMemoryHealthKitProvider(permission: .restricted, available: false)
+        #endif
+        #if canImport(CoreMotion)
+        let motionProvider: any MotionProvider = CoreMotionStoreProvider()
+        #else
+        let motionProvider: any MotionProvider = InMemoryMotionProvider(
+            permission: .restricted,
+            capabilities: .none
+        )
+        #endif
+        let health = HealthKitConnector(provider: healthProvider)
+        let motion = MotionConnector(provider: motionProvider)
+        return BuiltConnectors(
+            connectors: [
+                CalendarConnector(provider: EventKitCalendarProvider()),
+                RemindersConnector(provider: EventKitRemindersProvider()),
+                health,
+                GmailConnector(
+                    configuration: GmailConfiguration(clientID: clientID),
+                    store: KeychainTokenStore(), web: web
+                ),
+                LocationConnector(provider: locationProvider, trail: trailStore, maps: mapStore),
+                motion,
+                WeatherConnector(locationProvider: locationProvider, cache: weatherCache),
+                StocksConnector(),
+                WebSearchConnector(configuration: WebSearchConfiguration(apiKey: searchKey)),
+            ],
+            healthProvider: healthProvider,
+            locationProvider: locationProvider,
+            locationController: locationController,
+            motionProvider: motionProvider,
+            trailStore: trailStore,
+            mapStore: mapStore
+        )
+    }
+}
+
+enum AppTab: String, Hashable, CaseIterable {
+    case chat
+    case library
+    case health
+    case stocks
+    case trail
+    case surroundings
+    case scan
+    case you
+}
+
+private extension String {
+    var nilIfEmpty: String? {
+        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }
 

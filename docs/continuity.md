@@ -16,11 +16,11 @@ Packs are stored on each `DocumentRecord` (with legacy `"Pack / Title"` titles s
 
 ## Gentle check-ins
 
-**Settings → Personal → Gentle check-ins** (off by default).
+**You → Personal → Gentle check-ins** (off by default).
 
 Every few days, when you unlock or foreground the app, Applebot may offer one soft prompt about an open loop or near-term event from memory. **Let's talk** opens a new chat with that prompt. Nothing is sent off-device.
 
-The morning brief can also list incomplete **Reminders** (when Reminders access is granted), alongside Calendar and memory open loops.
+The morning brief can also list incomplete **Reminders** (when Reminders access is granted), alongside Calendar, memory open loops, optional **Health** lines, and optional **Markets** lines from the Stocks watchlist (when Stocks is on).
 
 ## Retrieval retune
 
@@ -28,7 +28,7 @@ On answers that used your documents, tap **Helpful?** thumbs. Applebot nudges hy
 
 ## Family profiles + Face ID
 
-**Settings → Personal → Family profile**
+**You → Personal → Family profile**
 
 - Add profiles (e.g. you + a partner)
 - Switch with Face ID / passcode when the target (or current) profile requires it
@@ -37,20 +37,20 @@ On answers that used your documents, tap **Helpful?** thumbs. Applebot nudges hy
 
 ## Encrypted backup & restore
 
-**Settings → Personal → Backup & restore**
+**You → Personal → Backup & restore**
 
 1. Choose a password (6+ characters)
 2. Optionally include document text
-3. Export an `.applebotpack` (AES-GCM, password-derived key)
+3. Export an `.applebotpack` (AES-GCM, password-derived key). Packs include profile, style card, memories, automations, retrieval weights, optional documents, and **behavioral patterns** (format v2; older packs restore with an empty behavioral card)
 4. Import into the **active** family profile with the same password
 
 The file never leaves the device unless you share it yourself.
 
 ## Local automations
 
-**Settings → Personal → Automations**
+**You → Personal → Automations**
 
-Recipes such as **Every Sunday · week plan**. On unlock, if a recipe is due, Applebot asks before running. Confirming opens a chat with the recipe prompt. No background cloud jobs.
+Recipes such as **Every Sunday · week plan**, **Friday wrap-up**, and an optional **Friday portfolio wrap-up** (uses Stocks tools when enabled). On unlock, if a recipe is due, Applebot asks before running. Confirming opens a chat with the recipe prompt. No background cloud jobs (stock *price* alerts use best-effort BGAppRefresh separately — see [stocks](stocks.md)).
 
 ## Developer map
 

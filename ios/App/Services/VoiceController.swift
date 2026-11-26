@@ -34,10 +34,18 @@ final class VoiceController {
     }
 
     var handsFree: Bool {
-        didSet { defaults.set(handsFree, forKey: Keys.handsFree) }
+        didSet {
+            defaults.set(handsFree, forKey: Keys.handsFree)
+            if !handsFree { shouldResumeAfterSpeak = false }
+        }
     }
 
     var onUtterance: ((String) -> Void)?
+
+    /// When true, finishing TTS may start the mic again (hands-free).
+    /// Armed only after a **voice** utterance is submitted — never after typed text —
+    /// so Speak replies alone cannot open the microphone.
+    @ObservationIgnored private var shouldResumeAfterSpeak = false
 
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let synthesizer = AVSpeechSynthesizer()
@@ -330,8 +338,14 @@ final class VoiceController {
     // MARK: - Speaking
 
     func speak(_ text: String) {
+        guard autoSpeak else { return }
+        speakForced(text)
+    }
+
+    /// Speak even when “Speak replies” is off (used by Surroundings accessibility).
+    func speakForced(_ text: String) {
         let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard autoSpeak, !cleaned.isEmpty else { return }
+        guard !cleaned.isEmpty else { return }
         if phase == .listening {
             stopListening(submit: false)
         }
@@ -352,6 +366,8 @@ final class VoiceController {
         synthesizer.speak(utterance)
     }
 
+    var isSpeaking: Bool { phase == .speaking }
+
     func stopSpeaking() {
         if synthesizer.isSpeaking {
             synthesizer.stopSpeaking(at: .immediate)
@@ -363,6 +379,7 @@ final class VoiceController {
     }
 
     func stopAll() {
+        shouldResumeAfterSpeak = false
         listenTask?.cancel()
         listenTask = nil
         stopListening(submit: false)
@@ -372,11 +389,22 @@ final class VoiceController {
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 
+    /// Call when a chat turn came from the mic so hands-free may reopen it after TTS.
+    func markVoiceTurn() {
+        shouldResumeAfterSpeak = handsFree
+    }
+
+    /// Call when the user typed (or a non-voice prompt was sent) so TTS will not open the mic.
+    func noteTypedInput() {
+        shouldResumeAfterSpeak = false
+    }
+
     func maybeResumeListening() {
-        guard handsFree, phase == .idle else { return }
+        guard shouldResumeAfterSpeak, handsFree, phase == .idle else { return }
         #if !targetEnvironment(simulator)
         guard onDeviceRecognitionAvailable else { return }
         #endif
+        // Keep the flag armed for the next voice cycle in this hands-free session.
         startListening()
     }
 

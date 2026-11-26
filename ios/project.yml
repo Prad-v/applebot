@@ -16,7 +16,7 @@ configFiles:
 settings:
   base:
     SWIFT_VERSION: "6.0"
-    MARKETING_VERSION: "0.8.0"
+    MARKETING_VERSION: "0.18.0"
     CURRENT_PROJECT_VERSION: "1"
     ENABLE_USER_SCRIPT_SANDBOXING: YES
     DEAD_CODE_STRIPPING: YES
@@ -57,13 +57,33 @@ targets:
         NSFaceIDUsageDescription: Applebot uses Face ID to keep your chats and documents private.
         NSCalendarsFullAccessUsageDescription: Applebot reads your calendar to answer questions about your schedule, and adds events only after you approve them. Calendar data stays on this iPhone.
         NSRemindersFullAccessUsageDescription: Applebot reads your Reminders to answer questions about your to-dos, and adds or completes reminders only after you approve them. Reminder data stays on this iPhone.
+        NSHealthShareUsageDescription: Applebot reads your Apple Health data (activity, vitals, sleep, workouts and health records) to answer your questions in chat. Health data stays on this iPhone and is never uploaded.
+        NSHealthClinicalHealthRecordsShareUsageDescription: Applebot reads clinical health records you have downloaded into Apple Health (such as allergies, medications, conditions and lab results) so it can answer your questions in chat. Records stay on this iPhone and are never uploaded. Applebot is not a medical device and does not give medical advice.
+        # Mirrors the health-records entitlement so runtime can safely request clinical types.
+        ApplebotHealthRecordsEnabled: true
+        NSHealthUpdateUsageDescription: Applebot does not write to Apple Health; this permission is unused and kept only because HealthKit requires the key when Health is enabled.
         NSMicrophoneUsageDescription: Applebot uses the microphone so you can talk to it. Audio is recognized on this iPhone and is not uploaded.
         NSSpeechRecognitionUsageDescription: Applebot turns your speech into text on this iPhone so you can chat hands-free. Recognition stays on-device; if that is unavailable, voice input is disabled.
+        NSLocationWhenInUseUsageDescription: Applebot uses your location to show GPS coordinates, bearings to waypoints, weather for “here”, and offline trail maps. Location stays on this iPhone and is never uploaded.
+        NSMotionUsageDescription: Applebot uses Motion & Fitness (steps and activity) for an optional sedentary check on the Trail tab and in chat. Motion data stays on this iPhone and is never uploaded.
+        NSCameraUsageDescription: Applebot uses the camera for Surroundings descriptions, 3D room scanning (RoomPlan), and the optional AR trail overlay. Photos and video stay on this iPhone and are never uploaded.
         # Injected from GOOGLE_CLIENT_ID (Local.xcconfig or the environment). Empty disables the Gmail connector.
         GoogleOAuthClientID: $(GOOGLE_CLIENT_ID)
         # Injected from BRAVE_API_KEY (Local.xcconfig or the environment). Empty disables the Web search connector.
         BraveSearchAPIKey: $(BRAVE_API_KEY)
         ITSAppUsesNonExemptEncryption: false
+        UIBackgroundModes:
+          - fetch
+        BGTaskSchedulerPermittedIdentifiers:
+          - dev.kekaflow.applebot.stocks.refresh
+    entitlements:
+      path: App/Applebot.entitlements
+      properties:
+        com.apple.developer.healthkit: true
+        # Clinical Health Records — App Review evaluates use at submission (no separate form).
+        # Requires NSHealthClinicalHealthRecordsShareUsageDescription and a privacy policy URL.
+        com.apple.developer.healthkit.access:
+          - health-records
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.kekaflow.applebot

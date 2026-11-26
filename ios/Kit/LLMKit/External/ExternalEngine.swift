@@ -54,7 +54,12 @@ public struct ExternalEngine: ToolCallingEngine {
                     let shown = TextAccumulator()
                     for _ in 0..<maxRounds {
                         try Task.checkCancellation()
-                        let turn = try await runRound(messages: messages, tools: tools) { delta in
+                        let turn = try await runRound(
+                            messages: messages,
+                            tools: tools,
+                            temperature: request.temperature,
+                            maximumResponseTokens: request.maximumResponseTokens
+                        ) { delta in
                             continuation.yield(shown.append(delta))
                         }
                         if turn.toolCalls.isEmpty {
@@ -104,9 +109,17 @@ public struct ExternalEngine: ToolCallingEngine {
     private func runRound(
         messages: [ExternalMessage],
         tools: [ToolSpec],
+        temperature: Double?,
+        maximumResponseTokens: Int?,
         onDelta: @Sendable (String) -> Void
     ) async throws -> Round {
-        let request = try adapter.makeRequest(config: config, messages: messages, tools: tools)
+        let request = try adapter.makeRequest(
+            config: config,
+            messages: messages,
+            tools: tools,
+            temperature: temperature,
+            maximumResponseTokens: maximumResponseTokens
+        )
         let response = try await transport.open(request)
 
         var pendingErrorBody = ""

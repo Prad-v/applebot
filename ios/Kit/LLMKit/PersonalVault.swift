@@ -2,7 +2,7 @@ import Foundation
 
 /// Portable snapshot of personal AI state for encrypted export/restore.
 public struct PersonalVaultPayload: Sendable, Codable, Equatable {
-    public static let formatVersion = 1
+    public static let formatVersion = 2
 
     public var formatVersion: Int
     public var exportedAt: Date
@@ -13,6 +13,8 @@ public struct PersonalVaultPayload: Sendable, Codable, Equatable {
     public var documents: [VaultDocument]
     public var retrievalWeights: RetrievalWeights
     public var automations: [AutomationRecipe]
+    /// Learned routines / interests / stress (optional; absent in v1 packs).
+    public var behavioralProfile: BehavioralProfile
 
     public init(
         formatVersion: Int = formatVersion,
@@ -23,7 +25,8 @@ public struct PersonalVaultPayload: Sendable, Codable, Equatable {
         memories: [MemoryFact],
         documents: [VaultDocument] = [],
         retrievalWeights: RetrievalWeights = .default,
-        automations: [AutomationRecipe] = []
+        automations: [AutomationRecipe] = [],
+        behavioralProfile: BehavioralProfile = .empty
     ) {
         self.formatVersion = formatVersion
         self.exportedAt = exportedAt
@@ -34,6 +37,26 @@ public struct PersonalVaultPayload: Sendable, Codable, Equatable {
         self.documents = documents
         self.retrievalWeights = retrievalWeights
         self.automations = automations
+        self.behavioralProfile = behavioralProfile
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case formatVersion, exportedAt, profileName, personalProfile, styleCard
+        case memories, documents, retrievalWeights, automations, behavioralProfile
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        formatVersion = try container.decode(Int.self, forKey: .formatVersion)
+        exportedAt = try container.decode(Date.self, forKey: .exportedAt)
+        profileName = try container.decode(String.self, forKey: .profileName)
+        personalProfile = try container.decode(PersonalProfile.self, forKey: .personalProfile)
+        styleCard = try container.decode(StyleCard.self, forKey: .styleCard)
+        memories = try container.decode([MemoryFact].self, forKey: .memories)
+        documents = try container.decodeIfPresent([VaultDocument].self, forKey: .documents) ?? []
+        retrievalWeights = try container.decodeIfPresent(RetrievalWeights.self, forKey: .retrievalWeights) ?? .default
+        automations = try container.decodeIfPresent([AutomationRecipe].self, forKey: .automations) ?? []
+        behavioralProfile = try container.decodeIfPresent(BehavioralProfile.self, forKey: .behavioralProfile) ?? .empty
     }
 }
 

@@ -59,12 +59,38 @@ final class ContinuityTests: XCTestCase {
             personalProfile: PersonalProfile(displayName: "Sam"),
             styleCard: StyleCard(traits: "warm", isEnabled: true),
             memories: [MemoryFact(text: "User's name is Sam", category: .person)],
-            automations: AutomationRecipe.templates
+            automations: AutomationRecipe.templates,
+            behavioralProfile: BehavioralProfile(typicalSleepHours: 7.1, sampleDays: 5)
         )
         let data = try PersonalVaultCodec.encodePayload(payload)
         let decoded = try PersonalVaultCodec.decodePayload(data)
         XCTAssertEqual(decoded.profileName, "Sam")
         XCTAssertEqual(decoded.memories.count, 1)
         XCTAssertEqual(decoded.personalProfile.displayName, "Sam")
+        XCTAssertEqual(decoded.behavioralProfile.typicalSleepHours, 7.1)
+        XCTAssertEqual(decoded.formatVersion, PersonalVaultPayload.formatVersion)
+    }
+
+    func testVaultDecodesLegacyPayloadWithoutBehavioral() throws {
+        let legacy: [String: Any] = [
+            "formatVersion": 1,
+            "exportedAt": "2026-01-01T00:00:00Z",
+            "profileName": "Sam",
+            "personalProfile": ["roles": [], "replyStyle": "balanced", "boundaries": [], "confirmedPrefs": [], "pendingPrefs": []],
+            "styleCard": ["samples": [], "traits": "", "isEnabled": false],
+            "memories": [],
+            "documents": [],
+            "retrievalWeights": [
+                "vectorWeight": 0.6,
+                "keywordWeight": 0.4,
+                "helpfulCount": 0,
+                "unhelpfulCount": 0,
+            ],
+            "automations": [],
+        ]
+        let data = try JSONSerialization.data(withJSONObject: legacy)
+        let decoded = try PersonalVaultCodec.decodePayload(data)
+        XCTAssertEqual(decoded.profileName, "Sam")
+        XCTAssertTrue(decoded.behavioralProfile.isEmpty)
     }
 }

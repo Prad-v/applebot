@@ -84,15 +84,46 @@ final class ChatPipelineTests: XCTestCase {
     }
 
     func testOverflowTriggersRetryWithTighterBudget() async throws {
-        let engine = MockEngine(scripts: [.fail(.contextOverflow), .reply("recovered")])
+        let engine = MockEngine(scripts: [.fail(.contextOverflow), .reply("recovered [1]")])
         let big = (0..<8).map {
             ContextSnippet(id: "\($0)", title: "Doc", text: String(repeating: "lorem ipsum dolor ", count: 120))
         }
         let pipeline = ChatPipeline(engine: engine, retriever: { _ in big })
         let (_, result) = try await collect(pipeline.send(question: "q", state: ChatState(), useDocuments: true))
-        XCTAssertEqual(result.answer, "recovered")
+        XCTAssertEqual(result.answer, "recovered [1]")
         XCTAssertEqual(engine.requests.count, 2)
         XCTAssertLessThanOrEqual(engine.requests[1].prompt.count, engine.requests[0].prompt.count)
+    }
+
+    func testGroundedAnswerWithoutCitationsTriggersOneRetry() async throws {
+        let snippets = [ContextSnippet(id: "1", title: "Manual", text: "Hold reset for ten seconds.")]
+        let engine = MockEngine(scripts: [
+            .reply("Just hold the button."),
+            .reply("Hold reset for ten seconds [1]."),
+        ])
+        let pipeline = ChatPipeline(engine: engine, retriever: { _ in snippets })
+        let (_, result) = try await collect(
+            pipeline.send(question: "How to reset?", state: ChatState(), useDocuments: true)
+        )
+        XCTAssertEqual(result.answer, "Hold reset for ten seconds [1].")
+        XCTAssertEqual(result.citedIndices, [1])
+        XCTAssertEqual(engine.requests.count, 2)
+        XCTAssertTrue(engine.requests[1].instructions.contains(PromptBuilder.groundingRetryNote))
+        XCTAssertEqual(engine.requests[0].temperature, 0.2)
+        XCTAssertEqual(engine.requests[0].maximumResponseTokens, 550)
+    }
+
+    func testGroundedEmptyContextWithoutNotFoundTriggersRetry() async throws {
+        let engine = MockEngine(scripts: [
+            .reply("Probably Tuesday."),
+            .reply(PromptBuilder.notFoundPhrase),
+        ])
+        let pipeline = ChatPipeline(engine: engine, retriever: { _ in [] })
+        let (_, result) = try await collect(
+            pipeline.send(question: "When is payday according to my documents?", state: ChatState(), useDocuments: true)
+        )
+        XCTAssertTrue(result.notFound)
+        XCTAssertEqual(engine.requests.count, 2)
     }
 
     func testPersistentOverflowSurfacesError() async {

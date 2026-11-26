@@ -20,100 +20,26 @@ struct DocumentsView: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                if let error = environment.startupError {
-                    Section { Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.orange) }
-                }
-
-                if !environment.imports.isEmpty {
-                    Section("Importing") {
-                        ForEach(environment.imports) { job in ImportRow(job: job) }
-                        if environment.imports.contains(where: { $0.state != .running }) {
-                            Button("Clear finished") { environment.dismissFinishedImports() }
-                        }
-                    }
-                }
-
-                Section {
-                    Picker("Pack", selection: $packFilter) {
-                        Text("All").tag(String?.none)
-                        Text(DocumentPack.unfiledLabel).tag(Optional(""))
-                        ForEach(environment.documentPacks, id: \.self) { pack in
-                            Text(pack).tag(Optional(pack))
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .accessibilityIdentifier("pack-filter")
-                    Button("New pack…") { showNewPack = true }
-                } header: {
-                    Text("Packs")
-                } footer: {
-                    Text("Group documents into packs like Work, Health, or Voice notes. Search in a chat can still use all documents or attachments.")
-                }
-
-                Section {
-                    if filtered.isEmpty {
-                        ContentUnavailableView {
-                            Label("No documents yet", systemImage: "doc.badge.plus")
-                        } description: {
-                            Text("Add PDFs, notes, or photos of documents. They are read and indexed on this iPhone, never uploaded.")
-                        } actions: {
-                            Button("Add documents") { showImporter = true }
-                                .buttonStyle(.borderedProminent)
-                        }
-                        .listRowBackground(Color.clear)
-                    }
-                    ForEach(filtered) { document in
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(document.displayTitle).font(.headline)
-                            HStack(spacing: 6) {
-                                if let pack = DocumentPack.pack(of: document) {
-                                    Text(pack)
-                                        .font(.caption2)
-                                        .padding(.horizontal, 6)
-                                        .padding(.vertical, 2)
-                                        .background(Color.secondary.opacity(0.15), in: Capsule())
-                                }
-                                Text("\(document.chunkCount) passages · \(document.addedAt.formatted(date: .abbreviated, time: .omitted))")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        .swipeActions {
-                            Button(role: .destructive) {
-                                Task { await environment.remove(document: document) }
-                            } label: { Label("Delete", systemImage: "trash") }
-                        }
-                        .swipeActions(edge: .leading) {
-                            Button("Pack") { assigning = document }
-                                .tint(.indigo)
-                        }
-                        .contextMenu {
-                            Button("Move to pack…") { assigning = document }
-                            Button("Unfiled") {
-                                Task { await environment.setDocumentPack(document, pack: nil) }
-                            }
-                        }
-                    }
-                } header: {
-                    if !environment.documents.isEmpty {
-                        Text("\(filtered.count) of \(environment.documents.count) · \(environment.chunkCount) passages")
-                    }
-                } footer: {
-                    if !environment.documents.isEmpty {
-                        Text("Originals are not copied into the app. Only extracted text and search vectors are stored, encrypted at rest.")
-                    }
+            Group {
+                if environment.documents.isEmpty && environment.imports.isEmpty {
+                    emptyLibrary
+                } else {
+                    libraryList
                 }
             }
-            .navigationTitle("Documents")
+            .applebotCanvas()
+            .navigationTitle("Library")
+            .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Menu {
                         Button("Import files", systemImage: "folder") { showImporter = true }
                         Button("Paste text", systemImage: "doc.on.clipboard") { showPaste = true }
                     } label: {
-                        Label("Add", systemImage: "plus")
+                        Image(systemName: "plus.circle.fill")
+                            .foregroundStyle(ApplebotTheme.accent)
                     }
+                    .accessibilityLabel("Add")
                     .accessibilityIdentifier("add-document")
                 }
             }
@@ -166,6 +92,147 @@ struct DocumentsView: View {
             }
         }
     }
+
+    private var emptyLibrary: some View {
+        ScrollView {
+            VStack(spacing: ApplebotTheme.spaceL) {
+                ApplebotHeroEmpty(
+                    symbol: "books.vertical.fill",
+                    title: "Your private library",
+                    message: "Add PDFs, notes, or photos. They are read and indexed on this iPhone — never uploaded.",
+                    primaryTitle: "Add documents",
+                    primarySystemImage: "doc.badge.plus",
+                    primaryAction: { showImporter = true },
+                    showBrand: false
+                )
+
+                ApplebotSecondaryButton(title: "Paste text", systemImage: "doc.on.clipboard") {
+                    showPaste = true
+                }
+                .frame(maxWidth: 280)
+            }
+            .padding(.bottom, ApplebotTheme.spaceXL)
+        }
+    }
+
+    private var libraryList: some View {
+        List {
+            if let error = environment.startupError {
+                Section {
+                    Label(error, systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(ApplebotTheme.warning)
+                }
+            }
+
+            if !environment.imports.isEmpty {
+                Section {
+                    ForEach(environment.imports) { job in ImportRow(job: job) }
+                    if environment.imports.contains(where: { $0.state != .running }) {
+                        Button("Clear finished") { environment.dismissFinishedImports() }
+                    }
+                } header: {
+                    Text("Importing").applebotSectionTitle()
+                }
+            }
+
+            Section {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ApplebotPill(title: "All", systemImage: "square.grid.2x2", isSelected: packFilter == nil) {
+                            packFilter = nil
+                        }
+                        ApplebotPill(title: DocumentPack.unfiledLabel, systemImage: "tray", isSelected: packFilter == "") {
+                            packFilter = ""
+                        }
+                        ForEach(environment.documentPacks, id: \.self) { pack in
+                            ApplebotPill(title: pack, systemImage: "folder", isSelected: packFilter == pack) {
+                                packFilter = pack
+                            }
+                        }
+                        ApplebotPill(title: "New pack", systemImage: "plus") {
+                            showNewPack = true
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                .listRowBackground(Color.clear)
+                .accessibilityIdentifier("pack-filter")
+            } header: {
+                Text("Packs").applebotSectionTitle()
+            } footer: {
+                Text("Group documents into packs like Work, Health, or Voice notes.")
+                    .font(ApplebotTheme.caption())
+            }
+
+            Section {
+                if filtered.isEmpty {
+                    ContentUnavailableView {
+                        Label("Nothing in this pack", systemImage: "doc.badge.plus")
+                    } description: {
+                        Text("Move documents here with swipe, or add new ones.")
+                    }
+                    .listRowBackground(Color.clear)
+                }
+                ForEach(filtered) { document in
+                    DocumentRowLite(document: document)
+                        .swipeActions {
+                            Button(role: .destructive) {
+                                Task { await environment.remove(document: document) }
+                            } label: { Label("Delete", systemImage: "trash") }
+                        }
+                        .swipeActions(edge: .leading) {
+                            Button("Pack") { assigning = document }
+                                .tint(ApplebotTheme.accent)
+                        }
+                        .contextMenu {
+                            Button("Move to pack…") { assigning = document }
+                            Button("Unfiled") {
+                                Task { await environment.setDocumentPack(document, pack: nil) }
+                            }
+                        }
+                        .listRowInsets(EdgeInsets(top: 12, leading: 20, bottom: 12, trailing: 20))
+                        .listRowBackground(Color.clear)
+                }
+            } header: {
+                if !environment.documents.isEmpty {
+                    Text("\(filtered.count) of \(environment.documents.count) · \(environment.chunkCount) passages")
+                        .applebotSectionTitle()
+                }
+            } footer: {
+                if !environment.documents.isEmpty {
+                    Text("Originals are not copied into the app. Only extracted text and search vectors are stored, encrypted at rest.")
+                        .font(ApplebotTheme.caption())
+                }
+            }
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+    }
+}
+
+private struct DocumentRowLite: View {
+    let document: DocumentRecord
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(document.displayTitle)
+                .font(.system(.body, design: .default).weight(.medium))
+                .foregroundStyle(ApplebotTheme.ink)
+            HStack(spacing: 6) {
+                if let pack = DocumentPack.pack(of: document) {
+                    Text(pack)
+                        .font(ApplebotTheme.caption().weight(.medium))
+                        .foregroundStyle(ApplebotTheme.accent)
+                }
+                Text("\(document.chunkCount) passages · \(document.addedAt.formatted(date: .abbreviated, time: .omitted))")
+                    .font(ApplebotTheme.caption())
+                    .foregroundStyle(ApplebotTheme.tertiaryInk)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+    }
 }
 
 struct ImportRow: View {
@@ -177,14 +244,15 @@ struct ImportRow: View {
             switch job.state {
             case .running:
                 ProgressView(value: job.progress)
+                    .tint(ApplebotTheme.accent)
                 Text(job.progress == 0 ? "Reading…" : "Indexing \(Int(job.progress * 100))%")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(ApplebotTheme.caption()).foregroundStyle(.secondary)
             case .done(let message):
                 Label(message, systemImage: "checkmark.circle.fill")
-                    .font(.caption).foregroundStyle(.green)
+                    .font(ApplebotTheme.caption()).foregroundStyle(.green)
             case .failed(let message):
                 Label(message, systemImage: "xmark.octagon.fill")
-                    .font(.caption).foregroundStyle(.red)
+                    .font(ApplebotTheme.caption()).foregroundStyle(ApplebotTheme.danger)
             }
         }
     }

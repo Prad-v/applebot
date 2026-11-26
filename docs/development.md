@@ -85,7 +85,7 @@ All tests live in **`tests/`** (one folder, by rule):
 | Path | What | Where it runs |
 |---|---|---|
 | `tests/LLMKitTests/` | Context budgeting, prompts, `ChatPipeline` (overflow retry, compaction, citations, tool calls), `ToolGuard` (approval, caps, trimming), external model streaming, Apple engine mapping and a live tool call | Docker (Linux); the Apple-only file runs on macOS |
-| `tests/ConnectorKitTests/` | OAuth/PKCE, registry, Calendar, Gmail, Weather / Stocks / Web search (`LiveDataConnectorTests`) against a mock HTTP client, approval-gate behaviour; Keychain test runs on macOS | Docker (Linux); the Keychain file runs on macOS |
+| `tests/ConnectorKitTests/` | OAuth/PKCE, registry, Calendar, Reminders, Apple Health, Gmail, Weather / Stocks / Web search (`LiveDataConnectorTests`) against a mock HTTP client, approval-gate behaviour; Keychain test runs on macOS | Docker (Linux); the Keychain file runs on macOS |
 | `tests/RAGKitTests/` | Chunker, BM25, vectors, hybrid fusion/MMR, `KnowledgeBase`, retrieval eval, SQLite store, NaturalLanguage embedders | Docker (Linux); SQLite and NL tests run on macOS |
 | `tests/UITests/` | XCUITest smoke tests against the mock engine | macOS CI / local simulator |
 | `tests/fixtures/` | Sample documents and labelled retrieval questions | shared |

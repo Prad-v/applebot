@@ -4,7 +4,7 @@ Applebot can talk like a warm companion or a supportive coach instead of a conci
 
 ## Using it
 
-1. Open **Settings → Conversation style**.
+1. Open **You → Conversation style**.
 2. Pick a style:
 
 | Style | Behaviour |
@@ -54,7 +54,7 @@ let pipeline = ChatPipeline(
 // ChatResult.emotion holds the reading for the user's message.
 ```
 
-The tone is stored in `UserDefaults` under the key `chatTone` (`AppEnvironment.Keys.chatTone`), defaulting to **Warm companion**. Warm and coach styles also raise the on-device sampling temperature slightly so replies feel less flat. There are no network calls and no new environment variables.
+The tone is stored in `UserDefaults` under the key `chatTone` (`AppEnvironment.Keys.chatTone`), defaulting to **Warm companion**. Warm and coach styles use a moderate sampling temperature for open chat (~0.7–0.75) and a lower temperature for document answers (~0.35), with a soft max length so companion replies stay short. Document and tool turns use a compact persona (no long “how are you?” examples) so more of the context window goes to passages and tool results. See [response-quality.md](response-quality.md). There are no network calls and no new environment variables.
 
 Tests: `tests/LLMKitTests/CompanionTests.swift`. Run them with `docker compose run --rm test`.
 
@@ -62,7 +62,7 @@ Tests: `tests/LLMKitTests/CompanionTests.swift`. Run them with `docker compose r
 
 | Problem | Fix |
 |---|---|
-| Replies still sound formal | Check **Settings → Conversation style** is not *Neutral* |
+| Replies still sound formal | Check **You → Conversation style** is not *Neutral* |
 | The bot ignored my documents | You were detected as distressed, so retrieval was skipped. Ask again in a calmer, specific way, or switch to *Neutral* |
 | The mood seems wrong | Detection is keyword based and deliberately simple. Say how you feel in plain words ("I feel anxious") |
 | "I can't help with that one…" | Apple's safety guardrails declined. Rephrase the message |

@@ -4,7 +4,7 @@ Applebot can remember durable facts across conversations. Everything stays on th
 
 ## Using it
 
-1. Open **Settings → Personal → What Applebot remembers**.
+1. Open **You → Personal → What Applebot remembers**.
 2. Leave **Remember across chats** on (default).
 3. Chat normally. After a turn, Applebot may store short facts (name, upcoming events, ongoing concerns, places, projects).
 4. In the list you can **pin**, **delete**, or turn memory off. Preference proposals appear under **Your profile** for confirmation.

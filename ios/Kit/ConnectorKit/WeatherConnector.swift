@@ -3,13 +3,14 @@ import LLMKit
 
 /// Current weather and a short forecast for any place, from Open-Meteo (no account, no API key).
 ///
-/// Only the place name the user asked about leaves the device.
+/// Only the place (or lat/lon for “here”) leaves the device. A successful forecast is cached so
+/// a short offline answer is still possible after signal is lost.
 public struct WeatherConnector: Connector {
     public let id = "weather"
     public let displayName = "Weather"
-    public let summary = "Current weather and a forecast for any city."
+    public let summary = "Current weather and a forecast for any city, or for your GPS position."
     public let symbolName = "cloud.sun"
-    public let dataNote = "Sends only the place you ask about to Open-Meteo (open-meteo.com). No account, and nothing else leaves this iPhone."
+    public let dataNote = "Sends only the place or coordinates you ask about to Open-Meteo (open-meteo.com). Cached forecasts stay on this iPhone for offline use."
     public let hasAccount = false
     public var usesNetwork: Bool { true }
 
@@ -22,14 +23,23 @@ public struct WeatherConnector: Connector {
 
     private let http: HTTPClient
     private let imperial: Bool
+    private let locationProvider: (any LocationProvider)?
+    private let cache: (any WeatherCacheStore)?
+    private let clock: @Sendable () -> Date
 
     /// `imperial` is the default unit system when the question does not say; it follows the device region.
     public init(
         http: HTTPClient = URLSessionHTTPClient(),
-        imperial: Bool = Locale.current.measurementSystem == .us
+        imperial: Bool = Locale.current.measurementSystem == .us,
+        locationProvider: (any LocationProvider)? = nil,
+        cache: (any WeatherCacheStore)? = nil,
+        clock: @escaping @Sendable () -> Date = { Date() }
     ) {
         self.http = http
         self.imperial = imperial
+        self.locationProvider = locationProvider
+        self.cache = cache
+        self.clock = clock
     }
 
     public func status() async -> ConnectorStatus { .connected(account: nil) }
@@ -41,27 +51,117 @@ public struct WeatherConnector: Connector {
     // MARK: Tool
 
     private var forecastTool: ToolSpec {
-        let http = self.http, imperial = self.imperial
+        let http = self.http
+        let imperial = self.imperial
+        let locationProvider = self.locationProvider
+        let cache = self.cache
+        let clock = self.clock
         return ToolSpec(
             name: "weather_forecast",
-            description: "Get the current weather and a daily forecast for a place. Use for any question about weather, temperature, rain, wind or whether to bring an umbrella or jacket.",
+            description: "Get the current weather and a daily forecast for a place. Use 'here' or omit location and pass GPS when the user means their current position. Prefer this over inventing weather. If offline, returns the last cached forecast when available.",
             parameters: [
-                ToolParameter("location", "City name, optionally with country or state, for example 'Paris, France' or 'Austin, Texas'."),
+                ToolParameter(
+                    "location",
+                    "City name (optionally with country), or 'here' / 'current' for the GPS position. Optional when latitude and longitude are set.",
+                    required: false
+                ),
+                ToolParameter("latitude", "Decimal latitude for a GPS-based forecast.", required: false),
+                ToolParameter("longitude", "Decimal longitude for a GPS-based forecast.", required: false),
                 ToolParameter("days", "Days of forecast, 1 to \(Self.maxDays). Defaults to \(Self.defaultDays).", kind: .integer, required: false),
                 ToolParameter("units", "'metric' (Celsius) or 'imperial' (Fahrenheit). Defaults to the device region.", required: false),
             ],
             label: "Checking the weather",
             handler: { arguments in
-                guard let location = arguments.string("location") else {
-                    throw ConnectorError.invalidArgument("A location is required, for example 'Paris, France'.")
-                }
                 let days = min(max(arguments.integer("days") ?? Self.defaultDays, 1), Self.maxDays)
                 let useImperial = Self.wantsImperial(arguments.string("units")) ?? imperial
-                let place = try await Self.geocode(location, http: http)
-                let forecast = try await Self.forecast(for: place, days: days, imperial: useImperial, http: http)
-                return Self.render(place: place, forecast: forecast, imperial: useImperial)
+                do {
+                    let place = try await Self.resolvePlace(
+                        arguments: arguments,
+                        http: http,
+                        locationProvider: locationProvider
+                    )
+                    let forecast = try await Self.forecast(for: place, days: days, imperial: useImperial, http: http)
+                    let text = Self.render(place: place, forecast: forecast, imperial: useImperial)
+                    if let cache {
+                        await cache.save(
+                            CachedWeather(
+                                placeTitle: place.title,
+                                latitude: place.latitude,
+                                longitude: place.longitude,
+                                renderedText: text,
+                                fetchedAt: clock()
+                            )
+                        )
+                    }
+                    return text
+                } catch {
+                    if let cached = await cache?.load() {
+                        let age = Self.cacheAgeLine(fetchedAt: cached.fetchedAt, now: clock())
+                        return "Offline or unreachable — using cached weather (\(age)).\n\n\(cached.renderedText)"
+                    }
+                    throw error
+                }
             }
         )
+    }
+
+    /// Resolve city name, explicit coordinates, or GPS "here".
+    static func resolvePlace(
+        arguments: ToolArguments,
+        http: HTTPClient,
+        locationProvider: (any LocationProvider)?
+    ) async throws -> Place {
+        if let latText = arguments.string("latitude"), let lonText = arguments.string("longitude"),
+           let lat = Double(latText), let lon = Double(lonText) {
+            guard (-90...90).contains(lat), (-180...180).contains(lon) else {
+                throw ConnectorError.invalidArgument("Latitude must be −90…90 and longitude −180…180.")
+            }
+            return Place(
+                name: "GPS \(LiveData.number(lat, decimals: 3)), \(LiveData.number(lon, decimals: 3))",
+                latitude: lat,
+                longitude: lon,
+                country: nil,
+                countryCode: nil,
+                admin1: nil
+            )
+        }
+        let location = arguments.string("location")
+        if Self.isHere(location) {
+            guard let locationProvider else {
+                throw ConnectorError.invalidArgument(
+                    "GPS weather needs Location connected, or pass a city name such as 'Paris, France'."
+                )
+            }
+            let fix = try await locationProvider.currentFix()
+            return Place(
+                name: "Current location",
+                latitude: fix.latitude,
+                longitude: fix.longitude,
+                country: nil,
+                countryCode: nil,
+                admin1: nil
+            )
+        }
+        guard let location else {
+            throw ConnectorError.invalidArgument("A location is required, for example 'Paris, France'.")
+        }
+        return try await geocode(location, http: http)
+    }
+
+    static func isHere(_ text: String?) -> Bool {
+        guard let text else { return false }
+        switch text.lowercased() {
+        case "here", "current", "me", "my location", "gps", "near me": return true
+        default: return false
+        }
+    }
+
+    static func cacheAgeLine(fetchedAt: Date, now: Date) -> String {
+        let seconds = max(0, Int(now.timeIntervalSince(fetchedAt)))
+        if seconds < 60 { return "just now" }
+        if seconds < 3600 { return "\(seconds / 60) min ago" }
+        if seconds < 86_400 { return "\(seconds / 3600) h ago" }
+        return "\(seconds / 86_400) d ago"
     }
 
     // MARK: Geocoding

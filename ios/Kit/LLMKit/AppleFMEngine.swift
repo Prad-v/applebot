@@ -52,9 +52,14 @@ public struct AppleFMEngine: ToolCallingEngine {
                         instructions: request.instructions
                     )
                     let options: GenerationOptions
-                    if let temperature = request.temperature {
-                        options = GenerationOptions(temperature: temperature)
-                    } else {
+                    switch (request.temperature, request.maximumResponseTokens) {
+                    case let (temp?, max?):
+                        options = GenerationOptions(temperature: temp, maximumResponseTokens: max)
+                    case let (temp?, nil):
+                        options = GenerationOptions(temperature: temp)
+                    case let (nil, max?):
+                        options = GenerationOptions(maximumResponseTokens: max)
+                    case (nil, nil):
                         options = GenerationOptions()
                     }
                     for try await snapshot in session.streamResponse(to: request.prompt, options: options) {

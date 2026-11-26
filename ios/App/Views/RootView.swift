@@ -2,30 +2,48 @@ import SwiftUI
 
 struct RootView: View {
     @Environment(AppEnvironment.self) private var environment
+    @Environment(ThemeController.self) private var theme
     @Environment(\.modelContext) private var modelContext
 
     var body: some View {
+        @Bindable var environment = environment
         ZStack {
-            TabView {
-                Tab("Chats", systemImage: "bubble.left.and.bubble.right") {
+            TabView(selection: $environment.selectedTab) {
+                Tab("Chat", systemImage: "bubble.left.and.bubble.right", value: AppTab.chat) {
                     ChatsView()
                 }
-                Tab("Documents", systemImage: "doc.text.magnifyingglass") {
+                Tab("Library", systemImage: "books.vertical", value: AppTab.library) {
                     DocumentsView()
                 }
-                Tab("Settings", systemImage: "gearshape") {
+                Tab("Health", systemImage: "heart.text.square", value: AppTab.health) {
+                    HealthView()
+                }
+                Tab("Stocks", systemImage: "chart.line.uptrend.xyaxis", value: AppTab.stocks) {
+                    StocksView()
+                }
+                Tab("Trail", systemImage: "map", value: AppTab.trail) {
+                    WildernessView()
+                }
+                Tab("Surroundings", systemImage: "eye", value: AppTab.surroundings) {
+                    SurroundingsView()
+                }
+                Tab("Scan", systemImage: "cube", value: AppTab.scan) {
+                    ScanView()
+                }
+                Tab("You", systemImage: "person.crop.circle", value: AppTab.you) {
                     SettingsView()
                 }
             }
-            .blur(radius: environment.isLocked ? 24 : 0)
+            .tint(theme.accent)
+            .blur(radius: environment.isLocked ? 28 : 0)
             .allowsHitTesting(!environment.isLocked)
 
             if environment.isLocked {
                 LockView()
-                    .transition(.opacity)
+                    .transition(.opacity.combined(with: .scale(scale: 0.98)))
             }
         }
-        .animation(.easeInOut(duration: 0.2), value: environment.isLocked)
+        .animation(.easeInOut(duration: 0.25), value: environment.isLocked)
         .onAppear { environment.attachModelContext(modelContext) }
         // Actions the assistant proposes (save a draft, add an event) always wait for the user here.
         // Dismissing the sheet counts as "Don't allow".
@@ -89,22 +107,34 @@ struct LockView: View {
     @Environment(AppEnvironment.self) private var environment
 
     var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "lock.fill")
-                .font(.system(size: 44))
-                .foregroundStyle(.tint)
-            Text("Applebot is locked")
-                .font(.title2.bold())
-            Text("Your chats and documents stay private.")
-                .foregroundStyle(.secondary)
-            Button("Unlock") {
+        VStack(spacing: ApplebotTheme.spaceM) {
+            Spacer()
+
+            Image(systemName: "lock")
+                .font(.system(size: 28, weight: .light))
+                .foregroundStyle(ApplebotTheme.accent)
+                .frame(width: 56, height: 56)
+                .background(Circle().strokeBorder(ApplebotTheme.accent.opacity(0.25), lineWidth: 1))
+
+            Text("Applebot")
+                .font(ApplebotTheme.brand(24))
+                .foregroundStyle(ApplebotTheme.ink)
+
+            Text("Private and locked")
+                .font(ApplebotTheme.footnote())
+                .foregroundStyle(ApplebotTheme.secondaryInk)
+
+            ApplebotPrimaryButton(title: "Unlock", systemImage: "faceid") {
                 Task { await environment.unlock() }
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
+            .frame(maxWidth: 200)
+            .padding(.top, 8)
+
+            Spacer()
         }
+        .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(.ultraThinMaterial)
+        .applebotCanvas()
         .task { await environment.unlock() }
     }
 }
@@ -116,40 +146,30 @@ struct AvailabilityBanner: View {
 
     var body: some View {
         if !environment.availability.isAvailable {
-            HStack(alignment: .top, spacing: 10) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.orange)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(environment.availability.message)
-                        .font(.subheadline)
-                    if environment.externalModelEnabled {
-                        Text("Fix the external model in Settings, or turn it off to use Apple Intelligence on this iPhone.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    } else if environment.availability == .appleIntelligenceDisabled,
-                              let url = URL(string: "app-settings:") {
-                        Button("Open Settings") { openURL(url) }
-                            .font(.subheadline.bold())
-                    }
+            ApplebotBanner(
+                kind: .warning,
+                icon: "exclamationmark.triangle.fill",
+                title: environment.availability.message,
+                detail: environment.externalModelEnabled
+                    ? "Fix the external model in You, or turn it off to use Apple Intelligence on this iPhone."
+                    : nil,
+                actionTitle: (!environment.externalModelEnabled && environment.availability == .appleIntelligenceDisabled)
+                    ? "Open Settings" : nil,
+                action: {
+                    if let url = URL(string: "app-settings:") { openURL(url) }
                 }
-                Spacer(minLength: 0)
-            }
-            .padding(12)
-            .background(.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
+            )
             .padding(.horizontal)
             .padding(.top, 8)
             .accessibilityIdentifier("availability-banner")
         } else if environment.isUsingExternalModel {
-            HStack(spacing: 10) {
-                Image(systemName: "cloud")
-                    .foregroundStyle(.secondary)
-                Text("Using \(environment.modelSummary). Messages leave this iPhone.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
+            ApplebotBanner(
+                kind: .info,
+                icon: "cloud",
+                title: "Using \(environment.modelSummary). Messages leave this iPhone."
+            )
+            .padding(.horizontal)
+            .padding(.top, 8)
             .accessibilityIdentifier("external-model-banner")
         }
     }

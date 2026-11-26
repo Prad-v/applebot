@@ -72,5 +72,5 @@ To tune retrieval, add a document and cases to `tests/fixtures`, change `Chunker
 |---|---|
 | Answers miss details that are in a document | Smaller `targetTokens` (150 to 200) or more passages per answer in Settings |
 | Passages are cut off | Fewer passages per answer, or smaller chunks, because the context window is shared |
-| Paraphrased questions miss | Make sure a semantic embedder is in use (Settings → Library → Embeddings should start with `nl-`) |
+| Paraphrased questions miss | Make sure a semantic embedder is in use (You → Library stats → Embeddings should start with `nl-`) |
 | Same fact repeated in several passages | Lower `mmrLambda` for more diversity |

@@ -70,8 +70,23 @@ public struct AutomationRecipe: Sendable, Codable, Equatable, Identifiable, Hash
             cadence: .weeklyFriday
         ),
         AutomationRecipe(
+            title: "Friday portfolio wrap-up",
+            prompt: "Help me do a short Friday portfolio wrap-up using my Applebot watchlist and holdings. "
+                + "Look up live quotes with tools when needed, summarize movers, and note any large day moves. "
+                + "Do not recommend buying or selling. Quotes may be delayed. Not financial advice.",
+            cadence: .weeklyFriday,
+            isEnabled: false
+        ),
+        AutomationRecipe(
             title: "Morning focus",
             prompt: "Based on my calendar, due reminders, and open loops, suggest one small focus for the next hour.",
+            cadence: .daily,
+            isEnabled: false
+        ),
+        AutomationRecipe(
+            title: "Afternoon stretch check",
+            prompt: "Have I been sitting too long? Use motion_sedentary if Motion is connected. "
+                + "Give one gentle stretch or short walk idea only if sedentary looks likely. Not medical advice.",
             cadence: .daily,
             isEnabled: false
         ),

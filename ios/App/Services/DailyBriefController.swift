@@ -44,6 +44,8 @@ final class DailyBriefController {
         facts: [MemoryFact],
         events: [BriefEvent],
         reminderTitles: [String] = [],
+        healthLines: [String] = [],
+        marketLines: [String] = [],
         now: Date = Date()
     ) {
         guard isEnabled else {
@@ -56,7 +58,8 @@ final class DailyBriefController {
         }
         let brief = DailyBriefBuilder.build(
             profile: profile, facts: facts, events: events,
-            reminderTitles: reminderTitles, now: now
+            reminderTitles: reminderTitles, healthLines: healthLines,
+            marketLines: marketLines, now: now
         )
         pendingBrief = brief
         defaults.set(day, forKey: key(Keys.lastDayKey))

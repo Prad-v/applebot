@@ -7,6 +7,7 @@ public enum ChatIntent: String, Sendable, Codable, Equatable, CaseIterable {
     case documents
     case calendar
     case reminders
+    case health
     case email
     case liveData
     case emotional
@@ -18,6 +19,7 @@ public enum ChatIntent: String, Sendable, Codable, Equatable, CaseIterable {
         case .documents: return "Documents"
         case .calendar: return "Calendar"
         case .reminders: return "Reminders"
+        case .health: return "Health"
         case .email: return "Email"
         case .liveData: return "Live data"
         case .emotional: return "Emotional"
@@ -31,7 +33,7 @@ public enum ChatIntent: String, Sendable, Codable, Equatable, CaseIterable {
     public var wantsTools: Bool {
         switch self {
         case .rewrite: return false
-        case .chat, .calendar, .reminders, .email, .liveData, .emotional, .documents: return true
+        case .chat, .calendar, .reminders, .health, .email, .liveData, .emotional, .documents: return true
         }
     }
 
@@ -41,7 +43,7 @@ public enum ChatIntent: String, Sendable, Codable, Equatable, CaseIterable {
     public var wantsDocuments: Bool {
         switch self {
         case .documents: return true
-        case .chat, .calendar, .reminders, .email, .liveData, .emotional, .rewrite: return false
+        case .chat, .calendar, .reminders, .health, .email, .liveData, .emotional, .rewrite: return false
         }
     }
 }
@@ -72,6 +74,9 @@ public struct IntentRouter: Sendable {
         }
         if Self.matches(lowered, anyOf: Self.remindersHints) {
             return .reminders
+        }
+        if Self.matches(lowered, anyOf: Self.healthHints) {
+            return .health
         }
         if Self.matches(lowered, anyOf: Self.emailHints) {
             return .email
@@ -110,13 +115,20 @@ public struct IntentRouter: Sendable {
         let hints = [
             "according to my", "in my documents", "in my notes", "in the pdf",
             "from my files", "what did i write", "my document", "the guide",
-            "the manual", "based on my",
+            "the manual", "based on my", "in my pdf", "from my notes",
+            "my handbook", "my policy", "search my documents", "search my notes",
+            "in the document", "from the document",
         ]
         return matches(lowered, anyOf: hints)
     }
 
     private static func looksFactual(_ lowered: String) -> Bool {
-        let starters = ["what ", "who ", "when ", "where ", "how ", "why ", "which ", "summarize ", "summarise ", "find ", "look up "]
+        let starters = [
+            "what ", "who ", "when ", "where ", "how ", "why ", "which ",
+            "summarize ", "summarise ", "find ", "look up ", "explain ",
+            "can you find ", "could you find ", "do you know what ", "tell me what ",
+            "what's the ", "whats the ", "what is the ",
+        ]
         return starters.contains(where: { lowered.hasPrefix($0) })
     }
 
@@ -136,12 +148,28 @@ public struct IntentRouter: Sendable {
         "remind me", "open tasks",
     ]
 
+    private static let healthHints = [
+        "apple health", "healthkit", "health kit", "health record", "health records",
+        "how many steps", "my steps", "step count", "heart rate", "resting heart",
+        "how did i sleep", "how i slept", "my sleep", "blood pressure", "blood oxygen",
+        "spo2", "my workout", "my workouts", "active energy", "calories burned",
+        "my weight", "allergies", "medications", "medication", "my meds", "pill",
+        "side effect", "wellness score", "lab results", "immunization",
+        "from health", "in health app",
+    ]
+
     private static let emailHints = [
         "email", "gmail", "inbox", "reply to", "draft a reply", "message from",
     ]
 
     private static let liveDataHints = [
         "weather", "forecast", "temperature", "stock", "ticker", "share price",
+        "watchlist", "portfolio", "share price alert", "earnings",
         "search the web", "look online", "latest news", "what did the",
+        "where am i", "where am i?", "gps", "coordinates", "my location",
+        "waypoint", "bearing", "compass", "breadcrumb", "trailhead",
+        "offline map", "map pack", "i'm lost", "im lost", "navigate",
+        "sitting too long", "been sitting", "sedentary", "motion activity",
+        "have i been sitting", "too sedentary",
     ]
 }

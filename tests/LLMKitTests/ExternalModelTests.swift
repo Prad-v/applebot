@@ -104,7 +104,9 @@ final class ExternalAdapterTests: XCTestCase {
         let request = try adapter.makeRequest(
             config: config,
             messages: [.system("sys"), .user("hi")],
-            tools: [tool]
+            tools: [tool],
+            temperature: 0.35,
+            maximumResponseTokens: 400
         )
         XCTAssertEqual(request.url?.absoluteString, "https://api.openai.com/v1/chat/completions")
         XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer sk-test")
@@ -113,6 +115,8 @@ final class ExternalAdapterTests: XCTestCase {
         })
         XCTAssertEqual(body["model"] as? String, "gpt-4o-mini")
         XCTAssertEqual(body["stream"] as? Bool, true)
+        XCTAssertEqual(body["temperature"] as? Double, 0.35)
+        XCTAssertEqual(body["max_tokens"] as? Int, 400)
         let tools = try XCTUnwrap(body["tools"] as? [[String: Any]])
         XCTAssertEqual(tools.first?["type"] as? String, "function")
     }

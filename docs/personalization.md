@@ -1,12 +1,32 @@
 # Personalization (on-device)
 
-Applebot builds a private personal context on this iPhone: a structured profile, ranked memories with expiry, an optional morning brief, voice notes into a document pack, a “write like me” style card, and a local intent router that keeps the ~4k-token window useful.
+Applebot builds a private personal context on this iPhone: a structured profile, ranked memories with expiry, a **behavioral patterns** card (routines / interests / stress), an optional morning brief, voice notes into a document pack, a “write like me” style card, and a local intent router that keeps the ~4k-token window useful.
 
 Nothing here leaves the device (unless you later send a chat through an external model you enabled).
 
+## Behavioral patterns (user twin card)
+
+**You → Personal → Behavioral patterns**
+
+Applebot does **not** fine-tune a model on your life. It builds a compact on-device summary from:
+
+| Signal | Source | Example prompt line |
+|---|---|---|
+| Sleep duration | Apple Health week trend | Typical sleep: 7.2h / night |
+| Exercise / steps | Health workouts + steps | Exercise: ~3.5 days / week |
+| Work / office window | Today’s Calendar timed events | Workday calendar window: 09:00–18:00 |
+| Interests / search topics | Chat questions + tools | Often asks about: Travel, Fitness |
+| Travel affinity | Travel keywords in chat / search | Travel interest: high |
+| Stress behaviour | Distressed chat tone (± short sleep) | Prefer calm, short replies |
+| Spending hints | Money / shopping language in chat | Often discusses budgets or purchases |
+
+After a few days of Health data and chatting, the card is injected into every prompt (~**100 tokens**, separate from the profile+memory **200**). Toggle it off anytime; **Refresh from Health & Calendar** updates routines without waiting for unlock.
+
+This is the foundation for a “behaves like you” companion: summarized patterns in the prompt, not continuous raw GPS/IMU streaming (see [on-device-enhancements](on-device-enhancements.md)).
+
 ## Your profile
 
-**Settings → Personal → Your profile**
+**You → Personal → Your profile**
 
 | Field | Purpose |
 |---|---|
@@ -21,7 +41,7 @@ The profile block is capped at about **80 tokens**. Ranked memory facts use the 
 
 ## Typed / ranked memory + expiry
 
-Facts still live under **Settings → What Applebot remembers**, with richer types:
+Facts still live under **You → What Applebot remembers**, with richer types:
 
 `person`, `preference`, `event`, `openLoop`, `place`, `project`, `other`
 
@@ -33,15 +53,16 @@ Preferences extracted from chat go to the profile confirmation queue instead of 
 
 ## Morning / unlock brief
 
-**Settings → Personal → Morning brief on unlock** (off by default).
+**You → Personal → Morning brief on unlock** (off by default).
 
 Once per calendar day, when the app becomes active or you unlock with Face ID, Applebot builds a brief from:
 
 1. Today’s **Calendar** events (if Calendar is connected)
 2. Ranked **open loops** / near-term events from memory
-3. Your profile name for the greeting
+3. Optional **Health** and **Markets** lines when those tabs have data
+4. Your profile name for the greeting
 
-Dismiss the sheet to continue. No network; Calendar data stays on device.
+Dismiss the sheet to continue. Calendar data stays on device; market lines use cached or freshly refreshed Stocks quotes when that connector is on (see [stocks](stocks.md)).
 
 ## Voice note → RAG pack
 
@@ -55,7 +76,7 @@ The note is indexed like any other document and can be attached to the chat. Pac
 
 ## Write like me (style card)
 
-**Settings → Personal → Write like me**
+**You → Personal → Write like me**
 
 1. Turn on **Enable style rewrite**.
 2. Paste up to three short samples of your writing and optional traits.
@@ -75,13 +96,14 @@ Before retrieval or tools, `IntentRouter` classifies the message (no model call)
 | `documents` | Run retrieval when “Use my documents” is on |
 | `chat` | Skip RAG and tools |
 
-This keeps airplane-mode chats snappy inside the on-device context window.
+This keeps airplane-mode chats snappy inside the on-device context window. Instruction assembly and sampling then follow [response-quality.md](response-quality.md) so companion examples do not crowd out passages or tool results.
 
 ## Developer map
 
 | Piece | Location |
 |---|---|
 | Profile + budget | `ios/Kit/LLMKit/PersonalProfile.swift` |
+| Behavioral twin card | `ios/Kit/LLMKit/BehavioralProfile.swift` |
 | Ranked memory | `ios/Kit/LLMKit/Memory.swift` |
 | Intent router | `ios/Kit/LLMKit/IntentRouter.swift` |
 | Style card | `ios/Kit/LLMKit/StyleCard.swift` |
@@ -89,9 +111,9 @@ This keeps airplane-mode chats snappy inside the on-device context window.
 | Daily brief | `ios/Kit/LLMKit/DailyBrief.swift` |
 | Document packs | `ios/Kit/RAGKit/DocumentPack.swift` |
 | Pipeline wiring | `ios/Kit/LLMKit/ChatPipeline.swift` |
-| App stores / UI | `PersonalProfileStore`, `StyleCardStore`, `DailyBriefController`, Settings / sheets |
+| App stores / UI | `PersonalProfileStore`, `BehavioralProfileStore`, `StyleCardStore`, `DailyBriefController`, Settings / sheets |
 
-Tests: `tests/LLMKitTests/PersonalizationTests.swift`, `tests/RAGKitTests/DocumentPackTests.swift`.
+Tests: `tests/LLMKitTests/PersonalizationTests.swift`, `tests/LLMKitTests/BehavioralProfileTests.swift`, `tests/RAGKitTests/DocumentPackTests.swift`.
 
 ```bash
 docker compose run --rm test
@@ -106,3 +128,5 @@ docker compose run --rm test
 | Rewrite ignores my voice | Enable the style card and add at least one sample or traits |
 | Preference never stuck | Confirm it under **Your profile → Confirm preferences** |
 | Old events still show | Unpin them, or wait for expiry purge on next Memories visit |
+| Behavioral card empty | Connect Health and/or Calendar; chat for a few days; tap **Refresh from Health & Calendar** |
+| Patterns feel wrong | Toggle off, or **Clear behavioral data** and rebuild |
